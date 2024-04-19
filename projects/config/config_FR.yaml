@@ -1,0 +1,26 @@
+defaults:
+  - _self_
+  - model: arcface
+  - training: full_training_FR
+  - testing: testing_FR
+  - wandb: defaults_FR
+  - augmentation:
+      - resize_112
+  - datasets:
+      - cropped_celeba
+  - debug_datasets:
+      - debug_cropped_celeba
+  - mode: default # Set to "debug" when debugging
+  - optional local: local.yaml
+
+seed: 1
+project_name: DIFFUSE
+run_name: ${now:%YY-%mm-%dd__%HH-%MM-%SS}
+
+# when in debug mode, checks if the right version of the dataset exists
+check_dataset: False
+
+work_dir: ${hydra:runtime.cwd}
+data_root: ${work_dir}/datasets
+log_dir: ./logs
+exp_dir: ${hydra:runtime.output_dir}

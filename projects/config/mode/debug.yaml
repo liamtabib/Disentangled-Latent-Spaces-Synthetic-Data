@@ -1,0 +1,13 @@
+# @package _global_
+check_dataset: False
+debug_mode: True
+wandb:
+  setup:
+    mode: disabled
+
+hydra:
+  run:
+    dir: ${log_dir}/${project_name}/debug/${run_name}
+  sweep:
+    dir: ${log_dir}/${project_name}/debug//multirun/${run_name}
+    subdir: ${hydra.job.num}

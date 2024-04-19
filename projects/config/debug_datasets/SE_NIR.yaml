@@ -1,0 +1,5 @@
+SE_NIR:
+  dataset_type: SE_NIR
+  dataset_version: _
+  images_dir: ${work_dir}/datasets/debug_SE_NIR/images
+  annotation_file: ${work_dir}/datasets/debug_SE_NIR/annotations.csv

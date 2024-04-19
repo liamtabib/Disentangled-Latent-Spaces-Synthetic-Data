@@ -1,0 +1,35 @@
+basic_aug:
+  _target_: albumentations.Compose
+  transforms:
+    - _target_: albumentations.Normalize
+      always_apply: false
+      max_pixel_value: 1
+      mean: [0.5, 0.5, 0.5]
+      p: 1.0
+      std: [0.5, 0.5, 0.5]
+    - _target_: albumentations.Resize
+      always_apply: false
+      height: 112
+      interpolation: 1
+      p: 1
+      width: 112
+      # We can add this augmentation to the val/test set beause it doesn t change
+      # the shape of the faces and helps if we have small val/test splits.
+      # Keeping the same seeds between runs should ensure the reproducibility of this augmentation.
+    - _target_: albumentations.HorizontalFlip
+      always_apply: false
+      p: 0.5
+    - _target_: albumentations.Rotate
+      always_apply: false
+      border_mode: 0
+      interpolation: 1
+      limit:
+        - -30
+        - 30
+      mask_value: null
+      p: 0.5
+      value: null
+    - _target_: albumentations.pytorch.transforms.ToTensorV2
+      always_apply: true
+      p: 1.0
+      transpose_mask: false

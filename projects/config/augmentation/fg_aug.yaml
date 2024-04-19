@@ -1,0 +1,17 @@
+fg_aug:
+  _target_: albumentations.Compose
+  transforms:
+    - _target_: albumentations.Resize
+      always_apply: false
+      height: 256
+      interpolation: 1
+      p: 1
+      width: 256
+    - _target_: projects.utils.data.augmentations.custom_augmentations.NormalizeToRange
+      min_val: -1
+      max_val: 1
+    - _target_: projects.utils.data.augmentations.custom_augmentations.ToFloat32
+    - _target_: albumentations.pytorch.transforms.ToTensorV2
+      always_apply: true
+      p: 1.0
+      transpose_mask: false

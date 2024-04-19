@@ -1,0 +1,66 @@
+seed: 1
+project_name: disentanglement
+check_dataset: false
+work_dir: ${hydra:runtime.cwd}
+data_root: ${work_dir}/datasets
+log_dir: ./logs
+exp_dir: ${hydra:runtime.output_dir}
+generator_pretrained_dir: projects/disentanglement/pretrained_models/stylegan3-r-ffhq-1024x1024.pkl
+classifier_pretrained_dir: projects/disentanglement/pretrained_models/classifiers_mlp.pkl
+datasets:
+  total_num_images: 30000
+  dataset_type: celebahq_disent
+  dataset_version: base_version
+  images_dir: ${work_dir}/datasets/celebahq/images
+  annotation_file: ${work_dir}/datasets/celebahq/annotations.csv
+model:
+  _target_: projects.disentanglement.src.models.DisGAN
+  w_plus_dim:
+  - 16
+  - 512
+  pretrained_encoder_dir: projects/disentanglement/pretrained_models/restyle_pSp_ffhq.pt
+  coupling: 4
+  mid_dim: 1000
+  hidden: 5
+  mask_config: 1
+training:
+  total_num_epochs: 100
+  n_pairs_loss_on: true
+  perturbation_loss_on: true
+  resume: false
+  resume_path: None
+  validate: true
+  num_gpus: 1
+  sample_pairs: true
+  lambda_ID: 4
+  lambda_latent: 4
+  print_memory_use: false
+  data_loaders:
+    train:
+      batch_size: 2
+      num_workers: 6
+      shuffle: true
+    val:
+      batch_size: 4
+      num_workers: 6
+      shuffle: false
+  perceptual_distance:
+    _target_: projects.disentanglement.utils.get_perceptual_distance
+    perceptual_distance_type: vgg16
+    vgg16_pretrained_dir: projects/disentanglement/pretrained_models/vgg16_head.pth
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.0001
+  identity_loss:
+    _target_: projects.disentanglement.src.loss.main_loss.IdentityNoiseLoss
+    arcface_pretrained_dir: projects/disentanglement/pretrained_models/ms1mv2_r50_fp16_backbone.pth
+  latent_loss:
+    _target_: projects.disentanglement.src.loss.main_loss.latent_loss
+  attribute_loss:
+    _target_: projects.disentanglement.src.loss.main_loss.attribute_loss
+  classifier:
+    _target_: projects.disentanglement.src.classifier.MLP
+    in_features: 8192
+    out_features: 1
+evaluation:
+  fid_n: 1000

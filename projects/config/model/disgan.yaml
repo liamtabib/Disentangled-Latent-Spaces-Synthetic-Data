@@ -1,0 +1,7 @@
+_target_: projects.disentanglement.src.models.DisGAN
+w_plus_dim: [16, 512]
+pretrained_encoder_dir: "projects/disentanglement/pretrained_models/restyle_pSp_ffhq.pt"
+coupling: 4
+mid_dim: 1000
+hidden: 5
+mask_config: 1

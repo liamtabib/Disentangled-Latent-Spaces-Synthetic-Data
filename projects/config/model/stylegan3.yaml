@@ -1,0 +1,65 @@
+_target_: projects.face_generation.src.generative_models.stylegan3.StyleGAN3
+G_kwargs:
+  z_dim: 512
+  w_dim: 512
+  c_dim: 40 # Number of CelebA attributes
+  channel_base: 32768
+  channel_max: 512
+  img_resolution: 256
+  img_channels: 3
+D_kwargs:
+  c_dim: 40 # Number of CelebA attributes
+  img_resolution: 256
+  img_channels: 3
+  block_kwargs:
+    _target_: ext.stylegan3.dnnlib.util.EasyDict
+    freeze_layers: False
+  mapping_kwargs:
+    _target_: ext.stylegan3.dnnlib.util.EasyDict
+    num_layers: 8
+  epilogue_kwargs:
+    _target_: ext.stylegan3.dnnlib.util.EasyDict
+    mbstd_group_size: 1
+optimizers:
+  G:
+    _path_: torch.optim.Adam
+    betas: [0, 0.99]
+    eps: 1e-8
+    lr: 0.0025
+  D:
+    _path_: torch.optim.Adam
+    betas: [0, 0.99]
+    eps: 1e-8
+    lr: 0.002
+phases:
+  G:
+    interval: null
+  D:
+    interval: null
+loss_kwargs:
+  r1_gamma: 8.2
+aug_kwargs: null
+  # xflip: 1
+  # rotate90: 1
+  # xint: 1
+  # scale: 1
+  # rotate: 1
+  # aniso: 1
+  # xfrac: 1
+  # brightness: 1
+  # contrast: 1
+  # lumaflip: 1
+  # hue: 1
+  # saturation: 1
+attributes:
+  # EMA
+  ema_rampup: null # 0.05
+  ema_kimg: 1
+
+  # ADA-augments
+  augment_kwargs: None
+  augment_p: 1
+  ada_target: 1
+  ada_interval: 1
+  ada_stats: null
+  ada_kimg: 1

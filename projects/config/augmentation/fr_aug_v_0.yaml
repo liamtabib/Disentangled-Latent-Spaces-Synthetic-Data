@@ -1,0 +1,43 @@
+fr_aug_v_0:
+  _target_: albumentations.Compose
+  transforms:
+    - _target_: albumentations.Normalize
+      always_apply: false
+      max_pixel_value: 1
+      mean: [0.5, 0.5, 0.5]
+      p: 1.0
+      std: [0.5, 0.5, 0.5]
+    - _target_: albumentations.Resize
+      always_apply: false
+      height: 112
+      interpolation: 1
+      p: 1
+      width: 112
+    - _target_: albumentations.HorizontalFlip
+      always_apply: false
+      p: 0.5
+    - _target_: albumentations.Rotate
+      always_apply: false
+      border_mode: 0
+      interpolation: 1
+      limit:
+        - -40
+        - 40
+      mask_value: null
+      p: 0.5
+      value: null
+    - _target_: albumentations.Blur
+      always_apply: false
+      p: 0.5
+      blur_limit: 5 # You can adjust the blur intensity as needed
+    - _target_: albumentations.RandomResizedCrop
+      always_apply: false
+      height: 112
+      width: 112
+      scale: [0.8, 1.0]
+      ratio: [1.0, 1.0]
+      p: 0.5
+    - _target_: albumentations.pytorch.transforms.ToTensorV2
+      always_apply: true
+      p: 1.0
+      transpose_mask: false

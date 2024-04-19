@@ -1,0 +1,33 @@
+total_num_epochs: 100
+resume: False
+resume_path: None
+validate: True
+num_gpus: 2
+sample_pairs: True
+lambda_n_pairs: 2
+lambda_perturbation: 1
+lambda_switch: 1
+print_memory_use: False
+
+data_loaders:
+  train:
+    batch_size: 2
+    num_workers: 8
+    shuffle: True
+  val:
+    batch_size: 12
+    num_workers: 6
+    shuffle: False
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1e-3
+
+NpairsMultilabelLoss:
+  _target_: projects.disentanglement.src.losses.NpairsMultilabelLoss
+
+PerturbationLoss:
+  _target_: projects.disentanglement.src.losses.DiscriminatorLoss
+
+SwitchLoss:
+  _target_: projects.disentanglement.src.losses.SwitchLoss

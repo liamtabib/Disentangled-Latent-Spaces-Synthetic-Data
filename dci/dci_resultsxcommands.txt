@@ -1,0 +1,15 @@
+DCI test w_plus:
+python projects/disentanglement/src/metrics/DCI.py -mode test -save_path projects/disentanglement/trained_classifiers_wplus -attribute_path datasets/celebahq/CelebAMask-HQ-attribute-anno.txt -latent_path projects/disentanglement/encoded_images/encoded_w_plus.pkl
+Output: 
+{'informativeness_train': 0.7964780952380952, 'informativeness_test': 0.7595295238095239, 'disentanglement': 0.7473321674310698, 'completeness': 0.34181460790409923}
+
+
+where T=12 for encoded_w_star:
+{'informativeness_train': 0.7967961904761905, 'informativeness_test': 0.7592571428571429, 'disentanglement': 0.7487989900466218, 'completeness': 0.34104745897134636}
+
+DCI train w_star:
+python projects/disentanglement/src/metrics/DCI.py -save_path projects/disentanglement/trained_classifiers_wstar -attribute_path datasets/celebahq/CelebAMask-HQ-attribute-anno.txt -latent_path projects/disentanglement/encoded_images/encoded_w_star.pkl
+
+
+DCI test w_star:
+python projects/disentanglement/src/metrics/DCI.py -mode test -save_path projects/disentanglement/trained_classifiers_wstar -attribute_path datasets/celebahq/CelebAMask-HQ-attribute-anno.txt -latent_path projects/disentanglement/encoded_images/encoded_w_star.pkl

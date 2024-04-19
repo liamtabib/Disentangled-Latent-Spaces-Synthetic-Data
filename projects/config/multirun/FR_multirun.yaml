@@ -1,0 +1,50 @@
+
+# wandb sweep projects/config/multirun/FR_multirun.yaml
+# after creating the agent run it adding before CUDA_VISIBLE_DEVICES=0,1,...
+# for example: CUDA_VISIBLE_DEVICES=0,1 wandb agent lorenzom/DIFFUSE-projects_face_recognition/xolo5y6q
+# Once you call this, W&B automatically creates a sweep inside your project
+# and returns a command for you to run.
+# https://wandb.ai/adrishd/hydra-example/reports/Configuring-W-B-Projects-with-Hydra--VmlldzoxNTA2MzQw
+
+program: projects/face_recognition/train.py
+method: random
+metric:
+  goal: maximize
+  name: test same id f1 score
+parameters:
+  model.m:
+    min: 0.2
+    max: 0.4
+    distribution: uniform
+  model.s:
+    min: 15
+    max: 25
+    distribution: uniform
+  training.focal_loss.gamma:
+    min: 2
+    max: 4
+    distribution: uniform
+  training.focal_loss.alpha:
+    min: 0.25
+    max: 0.5
+    distribution: uniform
+  training.backbone:
+    values: [resnet50,iresnet100]
+  training.lr_scheduler.base_lr:
+    min: 1e-3
+    max: 1e-1
+    distribution: uniform
+  training.optimizer.momentum:
+    min: 0.8
+    max: 1.2
+    distribution: uniform
+  training.optimizer.weight_decay:
+    min: 1e-4
+    max: 1e-2
+    distribution: uniform
+
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args_no_hyphens}
