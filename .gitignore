@@ -1,0 +1,7 @@
+**/datasets/
+**/ext/
+
+**/output/
+**/pretrained_models/
+
+**/*.pkl
