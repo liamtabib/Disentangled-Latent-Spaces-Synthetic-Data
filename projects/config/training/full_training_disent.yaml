@@ -11,7 +11,7 @@ print_memory_use: False
 
 data_loaders:
   train:
-    batch_size: 2
+    batch_size: 1
     num_workers: 8
     shuffle: True
   val:

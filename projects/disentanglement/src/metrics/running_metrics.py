@@ -28,8 +28,106 @@ import numpy as np
 import random
 from torchmetrics.image.fid import FrechetInceptionDistance
 import torch.nn.functional as F
+import numpy as np
+import scipy.stats
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+import pickle
+from sklearn.decomposition import PCA
+from PIL import Image, ImageDraw, ImageFont
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+# coding=utf-8
+# Copyright 2018 The DisentanglementLib Authors.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Implementation of Disentanglement, Completeness and Informativeness.
+Based on "A Framework for the Quantitative Evaluation of Disentangled
+Representations" (https://openreview.net/forum?id=By-7dz-AZ).
+"""
+from tqdm import tqdm  # Ensure tqdm is imported
+
+class DCI:
+    def __init__(self, encoded_tensor):
+        # Load and prepare data
+        self.input, self.attributes = self.load_data(encoded_tensor)
+        self.attrib_indices2, self.attributes2 = self.preprocessing(self.attributes)
+    
+    @staticmethod
+    def load_data(encoded_tensor):
+        num_examples = encoded_tensor.size(0)
+        input_data = encoded_tensor.reshape(num_examples, 16 * 512)
+        attributes = pd.read_csv('datasets/celebahq/CelebAMask-HQ-attribute-anno.txt', sep="\s+", nrows=num_examples)
+        return input_data, attributes
+    
+    def preprocessing(self, attributes):
+        num_samples = attributes.shape[0]
+        keep_threshold = int(num_samples * 0.05)  
+        select = ((attributes > 0).sum(axis=0) > keep_threshold) & ((attributes < 0).sum(axis=0) > keep_threshold)
+        attrib_indices2 = attributes.columns[select]
+        attributes2 = attributes.loc[:, attrib_indices2]
+        return attrib_indices2, attributes2
+    
+    def evaluate(self):
+        x, y = self.input, (self.attributes2.values > 0).astype(int)
+        p = np.random.permutation(len(y))
+        split_index = int(0.5 * len(y))
+        x_train, y_train = x[p[:split_index]], y[p[:split_index]]
+        x_test, y_test = x[p[split_index:]], y[p[split_index:]]
+        importance_matrix, train_loss, test_loss = self.compute_scores(x_train, y_train, x_test, y_test)
+        return importance_matrix, np.mean(train_loss), np.mean(test_loss)
+
+    def compute_scores(self, x_train, y_train, x_test, y_test):
+        importance_matrix = np.zeros((self.input.shape[1], len(self.attrib_indices2)), dtype=np.float64)
+        train_loss, test_loss = [], []
+        # Integrate tqdm progress bar
+        for i in tqdm(range(len(self.attrib_indices2)), desc="Training classifiers"):
+            model = GradientBoostingClassifier()
+            model.fit(x_train, y_train[:, i])
+            importance_matrix[:, i] = model.feature_importances_
+            train_loss.append(np.mean(model.predict(x_train) == y_train[:, i]))
+            test_loss.append(np.mean(model.predict(x_test) == y_test[:, i]))
+        return importance_matrix, train_loss, test_loss
+
+    @staticmethod
+    def disentanglement(importance_matrix):
+        per_code = 1.0 - scipy.stats.entropy(importance_matrix.T + 1e-11, base=importance_matrix.shape[1])
+        code_importance = importance_matrix.sum(axis=1) / importance_matrix.sum()
+        return np.sum(per_code * code_importance)
+
+    @staticmethod
+    def completeness(importance_matrix):
+        per_factor = 1.0 - scipy.stats.entropy(importance_matrix + 1e-11, base=importance_matrix.shape[0])
+        factor_importance = importance_matrix.sum(axis=0) / importance_matrix.sum()
+        return np.sum(per_factor * factor_importance)
+
+
+def get_font(size=40):
+    # Modify the path according to your operating system and the font availability
+    font_paths = {
+        'linux': '../../../../../usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf'
+    }
+    # Assuming the script is running on Linux
+    font_path = font_paths['linux']
+    try:
+        font = ImageFont.truetype(font_path, size)
+    except IOError:
+        print("Font path is incorrect or font is not available. Using default font.")
+        font = ImageFont.load_default()  # Fallback to default if specific font fails
+    return font
 
 
 class detection_FR_latent_space_distance(nn.Module):
@@ -202,7 +300,7 @@ class detection_FR_latent_space_distance(nn.Module):
 
 
 
-def combine_images_to_grid(Generator, model, save_path):
+def mix_identity(Generator, model, save_path):
     """
     Generates a grid of images where the first row and column display original images,
     and each cell in the grid combines halves of latent vectors from two different images.
@@ -602,7 +700,6 @@ def encode_dataset(model, limit=30000):
     
     # Process each image up to the specified limit.
     for img_file in tqdm(img_files_sorted, desc="Encoding images"):
-        i += 1
         if i == limit:
             break
 
@@ -619,6 +716,7 @@ def encode_dataset(model, limit=30000):
         # Retrieve and store the identity ID from the dictionary.
         identity_id = identity_dict.get(img_file, -1)
         identity_ids.append(identity_id)
+        i += 1
 
     # Convert lists to tensors.
     encoded_images_tensor = torch.tensor(encoded_images).squeeze(1)
@@ -825,3 +923,224 @@ class FR_latent_space_distance(nn.Module):
             file.write(
                 f"{epoch},{fid_score:.3f},{positives_distance:.3f},{negatives_distance:.3f},{ratio_distance:.3f}\n"
             )
+
+
+
+
+
+def mix_landmarks(Generator, model, save_path):
+    """
+    Generates a grid of images where the first row and column display original images,
+    and each cell in the grid combines halves of latent vectors from two different images.
+    The grid's dimension is dynamically determined based on the number of input images.
+    
+    Args:
+    - Generator (nn.Module): The generator model for image reconstruction.
+    - model (nn.Module): DisGAN model used for encoding and decoding images.
+    - image_paths (list): List of paths to the input images.
+    - save_path (str): Path where the generated grid image will be saved.
+    """
+
+
+    image_paths = [
+        'datasets/celebahq/images/11350.jpg', 'datasets/celebahq/images/10668.jpg',
+        'datasets/celebahq/images/10651.jpg', 'datasets/celebahq/images/11283.jpg',
+        'datasets/celebahq/images/11217.jpg', 'datasets/celebahq/images/10964.jpg'
+    ]
+
+    # Handle case where the model is wrapped in DataParallel
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+    Generator.to('cuda')
+    model.to('cuda')
+
+    # Define image transformations
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+
+    # Process each image to get its original reconstructed version
+    original_images = []
+    for image_path in image_paths:
+        img = Image.open(image_path).convert('RGB')
+        img_tensor = transform(img).unsqueeze(0).to('cuda')
+        with torch.no_grad():
+            # Encode and decode using DisGAN to get the reconstructed image
+            w_plus, _ = model(img_tensor)
+            reconstructed_img = Generator(w_plus)
+            reconstructed_img = (reconstructed_img * 0.5 + 0.5).clamp(0, 1)
+            original_images.append(reconstructed_img)
+
+    # Determine the grid size: number of images + 1 for the header row/column
+    grid_size = len(image_paths) + 1
+    # Initialize grid with a placeholder for the top-left corner
+    white_image = torch.ones_like(original_images[0])
+    grid_images = []
+    # Construct the grid row by row
+    for i in range(len(image_paths)+1): #rows
+        for j in range(len(image_paths)+1): #columns
+            if i == j == 0:
+                grid_images.append(white_image)
+            elif i == 0 and j != 0:
+                grid_images.append(original_images[j-1])
+            elif i != 0 and j == 0:
+                grid_images.append(original_images[i-1])
+                # If the row and column indices are the same, use the original image
+            elif i == j:
+                grid_images.append(original_images[i-1])
+            else:
+                # Combine the first half of the i-th image's latent vector with the second half of the j-th image's
+                with torch.no_grad():
+
+                    _, w_star_i = model(transform(Image.open(image_paths[i-1]).convert('RGB')).unsqueeze(0).to('cuda'))
+                    _, w_star_j = model(transform(Image.open(image_paths[j-1]).convert('RGB')).unsqueeze(0).to('cuda'))
+
+                    w_star_i = w_star_i.view(w_star_i.size(0), -1)  # Reshapes to [batchsize, 8192]
+                    w_star_j = w_star_j.view(w_star_j.size(0), -1)  # Reshapes to [batchsize, 8192]
+
+                    num_landmarks = 1
+                    combined_w_star = torch.cat([w_star_i[:, :num_landmarks],w_star_j[:, num_landmarks:]], dim=1) #The rows are landmarks part, columns are else
+
+                    combined_w_star = combined_w_star.view(-1, 16, 512)
+
+                    # map to W^+
+                    combined_w_plus = model.inverse_T(combined_w_star)
+
+                    combined_image = Generator(combined_w_plus)
+                    
+                    # Normalize the images to [0, 1] for visualization
+                    combined_img = (combined_image * 0.5 + 0.5).clamp(0, 1)
+
+                    grid_images.append(combined_img)
+        # Concatenate all images in the row horizontally
+       
+    grid_image = torch.cat(grid_images, dim=2)
+    grid_image = grid_image.squeeze(0)
+
+    # Assuming grid_images is your list of (n+1)^2 image tensors
+    # First, reshape grid_images into a matrix of image tensors for easier manipulation
+    image_matrix = [grid_images[i:i + grid_size] for i in range(0, len(grid_images), grid_size)]
+
+    # Concatenate images within each row
+    rows = [torch.cat(row_images, dim=3) for row_images in image_matrix]
+
+    # Concatenate rows to form the grid
+    final_grid = torch.cat(rows, dim=2).squeeze(0)
+
+    # Save the final grid to a file
+    save_image(final_grid, save_path, nrow=grid_size)
+
+
+
+def pca_with_perturbation(Generator, model, encoded_images, save_path, n_components=3, scales=[-2, -1.33, -0.67, 0, 0.67, 1.33, 2]):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    Generator.to(device)
+    
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+    # Flatten the encoded images for PCA
+    encoded_images = encoded_images.view(encoded_images.size(0), -1)
+    half_feature_size = encoded_images.shape[-1] // 2  # Assuming the last dimension is the feature dimension
+
+    first_half = encoded_images[:, :half_feature_size]
+    # Perform PCA
+    pca = PCA(n_components=n_components)
+    pca.fit(first_half)
+    principal_components = pca.components_  # Shape: [n_components, flattened_image_size]
+    eigenvalues = pca.explained_variance_  # Shape: [n_components]
+
+    # We will store the generated images tensors here
+    generated_images = []
+    encoded_images_tensor = torch.tensor(encoded_images, dtype=torch.float32, device=device)
+
+    for i in range(n_components):
+        # Get the i-th principal component
+        principal_component = torch.tensor(principal_components[i], dtype=torch.float32, device=device)
+        std_dev = torch.sqrt(torch.tensor(eigenvalues[i], device=device))
+
+        for scale in scales:
+            # Scale the principal component
+            scaled_component = scale * std_dev * principal_component
+            
+            # Modify each latent vector by the scaled component
+            modified_latent_vector = encoded_images_tensor[10].clone()  # Use .clone() to ensure we're not modifying the original
+            modified_latent_vector[:half_feature_size] += scaled_component
+            modified_latent_vector_reshaped = modified_latent_vector.reshape(1, 16, 512).to(device)
+
+            modified_latent_vector_reshaped = model.inverse_T(modified_latent_vector_reshaped)
+            # Generate the image
+            with torch.no_grad():
+                generated_image = Generator(modified_latent_vector_reshaped)
+
+            generated_image = (generated_image + 1) / 2  # Normalize to [0, 1]
+
+            # Convert tensor to PIL Image for drawing
+            image_tensor = generated_image.cpu().squeeze(0).permute(1, 2, 0).numpy()
+            image = Image.fromarray((image_tensor * 255).astype('uint8'))
+            draw = ImageDraw.Draw(image)
+            font = get_font(80)  # Use the custom function to get the font
+            text = f'{scale} * σ'
+            draw.text((10, 940), text, font=font, fill=(255, 255, 255))
+
+            # Convert back to tensor
+            image_tensor = np.array(image) / 255.0
+            image_tensor = torch.tensor(image_tensor).permute(2, 0, 1)
+            image_tensor = image_tensor.unsqueeze(0)
+
+            generated_images.append(image_tensor)
+
+    white_image = torch.ones_like(generated_image)
+    for i in range(len(scales)):
+        generated_images.append(white_image.cpu())
+
+
+    second_half = encoded_images[:,half_feature_size:]
+    # Perform PCA
+    pca = PCA(n_components=n_components)
+    pca.fit(second_half)
+    principal_components = pca.components_  # Shape: [n_components, flattened_image_size]
+    eigenvalues = pca.explained_variance_  # Shape: [n_components]
+
+    for i in range(n_components):
+        # Get the i-th principal component
+        principal_component = torch.tensor(principal_components[i], dtype=torch.float32, device=device)
+        std_dev = torch.sqrt(torch.tensor(eigenvalues[i], device=device))
+
+        for scale in scales:
+            # Scale the principal component
+            scaled_component = scale * std_dev * principal_component
+            
+            # Modify each latent vector by the scaled component
+            modified_latent_vector = encoded_images_tensor[10].clone()  # Use .clone() to ensure we're not modifying the original
+            modified_latent_vector[half_feature_size: ] += scaled_component
+            modified_latent_vector_reshaped = modified_latent_vector.reshape(1, 16, 512).to(device)
+            modified_latent_vector_reshaped = model.inverse_T(modified_latent_vector_reshaped)
+
+            # Generate the image
+            with torch.no_grad():
+                generated_image = Generator(modified_latent_vector_reshaped)
+
+            # Normalize the generated image to [0, 1]
+            generated_image = (generated_image + 1) / 2  # Normalize to [0, 1]
+
+            # Convert tensor to PIL Image for drawing
+            image_tensor = generated_image.cpu().squeeze(0).permute(1, 2, 0).numpy()
+            image = Image.fromarray((image_tensor * 255).astype('uint8'))
+            draw = ImageDraw.Draw(image)
+            font = get_font(80)  # Use the custom function to get the font
+            text = f'{scale} * σ'
+            draw.text((10, 940), text, font=font, fill=(255, 255, 255))
+
+            # Convert back to tensor
+            image_tensor = np.array(image) / 255.0
+            image_tensor = torch.tensor(image_tensor).permute(2, 0, 1)
+            image_tensor = image_tensor.unsqueeze(0)
+
+            generated_images.append(image_tensor)
+
+
+    # Save the grid of generated images
+    grid = torch.cat(generated_images, 0)
+    save_image(grid, save_path, nrow=len(scales))

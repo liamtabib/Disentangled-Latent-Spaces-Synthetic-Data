@@ -69,15 +69,21 @@ def compute_norm(params):
 
 def compute_norm_gradients(losses, model):
     grads = []
-
-    params_to_differentiate = []
-    for param in model.parameters():
-        if param.requires_grad:
-            params_to_differentiate.append(param)
+    params_to_differentiate = [param for param in model.parameters() if param.requires_grad]
 
     for loss in losses:
-        grads.append(torch.autograd.grad(loss, params_to_differentiate, retain_graph=True,allow_unused=True))
-    return [compute_norm(grad) for grad in grads]
+        try:
+            # This call might fail with a RuntimeError
+            grad = torch.autograd.grad(loss, params_to_differentiate, retain_graph=True, allow_unused=True)
+            grads.append(grad)
+        except RuntimeError as e:
+            print(f"Skipping gradient computation due to error: {e}")
+            grads.append(None)  # Append None or handle differently if you wish
+
+    # Compute norm for each valid gradient, skip None entries
+    norm_grads = [compute_norm(grad) if grad is not None else 0 for grad in grads]
+    return norm_grads
+
 
 
 def plot_metrics(train, test,plot_type, save_dir):

@@ -6,6 +6,8 @@ import torch.nn.functional as F
 import cv2
 import dlib
 import numpy as np
+import projects.disentanglement.src.utils as utils
+
 
 class DiscriminatorLoss(nn.Module):
     """
@@ -59,10 +61,6 @@ class DiscriminatorLoss(nn.Module):
 
             # Calculate loss only for the second half.
             loss_secondhalf = self.loss_fn(discriminator_secondhalf_preds, targets)
-
-            # Cleanup and free memory after computation.
-            del targets
-            torch.cuda.empty_cache()
             
             return loss_secondhalf
         
@@ -120,12 +118,14 @@ class SwitchLoss(nn.Module):
         # Compute cosine similarity between embeddings.
         similarity = torch.nn.functional.cosine_similarity(embedding1, embedding2, dim=-1)
 
+        probabilities = (similarity + 1) / 2
+
         # Create the target tensor based on whether the images are from the same identity.
         target_value = 1.0 if same_ID else 0.0
         target = torch.full_like(similarity, target_value)
 
         # Compute the loss between the similarity and the target.
-        loss = self.loss_fn(similarity, target)
+        loss = F.binary_cross_entropy(probabilities, target)
         
         # Return the computed loss.
         return loss
@@ -175,18 +175,10 @@ class ContrastiveLoss(nn.Module):
 
         if not self.triplet:
             # Calculate contrastive loss using N-pair approach.
-            batch_size = anchor.size(0)
             logit = torch.matmul(anchor, torch.transpose(positive, 0, 1))  # Compute logits for a mini-batch.
             loss_ce = cross_entropy(logit, target)  # Cross-entropy loss from logits and target matrix.
-            l2_loss = torch.sum(anchor**2) / batch_size + torch.sum(positive**2) / batch_size  # Regularization by L2 norm.
 
-            loss = loss_ce + 0.01 * l2_loss  # Combine cross-entropy loss and L2 regularization.
-
-            # Cleanup and free GPU memory.
-            del logit, loss_ce, l2_loss
-            torch.cuda.empty_cache()
-
-            return loss / 1000  # Scale down the loss to prevent overflow or fast divergence during training.
+            return loss_ce
         
         else:
             # Calculate triplet margin loss.
@@ -198,16 +190,11 @@ class ContrastiveLoss(nn.Module):
 
             # Compute the margin loss.
             similarity_diff = positive_similarity - negative_similarity
-            margin = 0.5  # Define the margin for triplet loss.
+            margin = 0.3  # Define the margin for triplet loss.
             losses = F.relu(margin - similarity_diff)  # Hinge loss: max(0, margin - similarity_diff).
 
-            # Average the losses and add L2 regularization.
             triplet_loss = torch.mean(losses)
-            l2_loss = (torch.mean(anchor**2) + torch.mean(positive**2) + torch.mean(negative**2)) / 3
-
-            # Total loss: triplet margin loss plus regularization.
-            loss = triplet_loss + 0.01 * l2_loss
-            return loss
+            return triplet_loss
 
 
 class LandmarkDetector(nn.Module):
@@ -219,14 +206,20 @@ class LandmarkDetector(nn.Module):
     def forward(self, images):
         device = images.device
         batch_size = images.shape[0]
-        images_np = images.detach().cpu().numpy().transpose(0, 2, 3, 1).astype(np.uint8)
+        images_np = images.detach().cpu().numpy()  # Assuming images are already clamped to [0, 1]
+        images_np = (images_np * 255).transpose(0, 2, 3, 1).astype(np.uint8)  # Scale and convert
         batch_bounding_boxes = []
 
         for i in range(batch_size):
+
             image_np = cv2.cvtColor(images_np[i], cv2.COLOR_RGB2BGR)
             gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+
             faces = self.detector(gray)
             image_bounding_boxes = []
+
+            if len(faces) == 0:
+                return None
 
             for face in faces:
                 landmarks = self.predictor(gray, face)
@@ -236,12 +229,12 @@ class LandmarkDetector(nn.Module):
 
                 regions = {
                     "mouth": list(range(48, 61)),
-                    "right_eyebrow": list(range(17, 22)),
-                    "left_eyebrow": list(range(22, 27)),
-                    "right_eye": list(range(36, 42)),
-                    "left_eye": list(range(42, 48)),
-                    "nose": list(range(27, 36)),
-                    "jaw": list(range(0, 17))
+                    #"right_eyebrow": list(range(17, 22)),
+                    #"left_eyebrow": list(range(22, 27)),
+                    #"right_eye": list(range(36, 42)),
+                    #"left_eye": list(range(42, 48)),
+                    #"nose": list(range(27, 36)),
+                    #"jaw": list(range(0, 17))
                 }
 
                 for indices in regions.values():
@@ -254,9 +247,10 @@ class LandmarkDetector(nn.Module):
         return torch.tensor(batch_bounding_boxes, dtype=torch.int32, device=device)
 
 class LandmarkLoss(nn.Module):
-    def __init__(self, lm_network):
+    def __init__(self, lm_network, ratio_inside_outside):
         super(LandmarkLoss, self).__init__()
         self.lm_network = lm_network
+        self.ratio_inside_outside = ratio_inside_outside
 
     def get_bounding_boxes(self, images):
         return self.lm_network(images)
@@ -264,47 +258,41 @@ class LandmarkLoss(nn.Module):
     def forward(self, generator, model, w_star):
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
-        w_plus = model.inverse_T(w_star.view(-1, 16, 512))
-        reconstructed_images = generator(w_plus).mul_(0.5).add_(0.5).clamp_(0, 1)
-        bounding_boxes = self.get_bounding_boxes(reconstructed_images)
-        f
-        
+
+        with torch.no_grad():
+            w_plus = model.inverse_T(w_star.view(-1, 16, 512))
+            reconstructed_images = generator(w_plus).mul_(0.5).add_(0.5).clamp_(0, 1)
+            
+            bounding_boxes = self.get_bounding_boxes(reconstructed_images)
+        if bounding_boxes is None:
+            return torch.tensor(0.0, device=w_star.device, requires_grad=True)
+            #print(bounding_boxes.shape)
+            
         loss = 0.0
         for k in range(bounding_boxes.shape[1]):
             perturbed_w_star = w_star.clone()
-            perturbed_w_star[:, k] += torch.randn_like(w_star[:, k])
+            perturbed_w_star[:, k] += torch.randn_like(w_star[:, k], memory_format=torch.preserve_format)  # in-place addition
             
-            perturbed_latents = T_inv(perturbed_w_star)
-            perturbed_images = generator(perturbed_latents)
+            perturbed_w_plus = model.inverse_T(perturbed_w_star.view(-1, 16, 512))
+            perturbed_images = generator(perturbed_w_plus).mul_(0.5).add_(0.5).clamp_(0, 1)
+
+            pixel_diffs = (reconstructed_images - perturbed_images).pow_(2)  # in-place power operation
             
-            pixel_diffs = (original_images - perturbed_images) ** 2
-            
-            masks = torch.zeros_like(original_images)
+            masks = torch.zeros_like(reconstructed_images)
             for idx in range(bounding_boxes.shape[0]):
                 x, y, xw, yh = bounding_boxes[idx, k]
                 masks[idx, :, y:yh, x:xw] = 1
             
-            inside_bb_loss = (masks * pixel_diffs).sum()
             outside_bb_loss = ((1 - masks) * pixel_diffs).sum()
+
+            inside_bb_loss =  (masks * pixel_diffs).sum()
+
+            with torch.no_grad():
+                
+                weight_inside = (self.ratio_inside_outside * outside_bb_loss ) / inside_bb_loss
+            inside_bb_loss = weight_inside * inside_bb_loss
             
-            loss += inside_bb_loss - outside_bb_loss
+            loss += torch.clamp(outside_bb_loss - inside_bb_loss, min=0)
 
-        normalized_loss = loss / (bounding_boxes.shape[1] * torch.tensor(original_images.shape[2:]).prod() * original_images.shape[0])
+        normalized_loss = loss / (bounding_boxes.shape[1] * torch.tensor(reconstructed_images.shape[2:]).prod() * reconstructed_images.shape[0])
         return normalized_loss
-    
-
-
-
-# Images generated through G are of dimension 3 x 1020 x 1020
-# capital K denotes the total number of landmarks extracted, whilst k goes from 1 to K is an indice of each landmark k.
-
-#For each latent w_star 
-# Pass it through T^-1 and G to generate an image: reconstructed I #can be vectorized
-# Pass it through landmark model to obtain bounding boxes for K landmark #maybe
-# for each landmark k:
-# perturb (from a standard normal) w_star in the k'th dimension, and pass it through  T^-1 and G to generate a perturbed image
-# Enforce that the perturbation affects only the k'th landmark by encouraging that the pixels that are perturbed are in the
-## bounding box of that landmark
-# Hence, we compute the pixelwise difference between the reconstructed image and the perturbed image., and punish differences
-# in pixels that do not lie in the bounding box of the landmark k and encourage differences that do lie in the bounding box of landmark k.
-
