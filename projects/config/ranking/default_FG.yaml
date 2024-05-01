@@ -1,4 +1,0 @@
-
-rows: 5  # Number of rows in generated ranking image
-cols: 4  # Number of columns in generated ranking image
-save_name: ${work_dir}/logs/ranking/${now:%Y%m%d_%H%M%S}  # File path for save location

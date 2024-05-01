@@ -1,8 +1,0 @@
-setup:
-  project:  ${project_name} # Set the project where this run will be logged
-  name: ${run_name} # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-  entity:
-  mode: online
-watch: # Logging data on wandb will slow down the training
-  log: Null # Switch to all for log all data about the network you want to use
-  log_freq: 10000000 #  log gradients and parameters every N batches

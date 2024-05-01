@@ -1,6 +1,0 @@
-_target_: src.models.arcface.ArcMarginProduct
-model_name: arcface
-in_features: 512
-out_features: null #It is set during data loading
-m: 0.35
-s: 8.0

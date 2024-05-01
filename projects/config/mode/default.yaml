@@ -1,9 +1,0 @@
-# @package _global_
-debug_mode: False
-
-hydra:
-  run:
-    dir: ${log_dir}/${project_name}/runs/${run_name}
-  sweep:
-    dir: ${log_dir}/${project_name}/multiruns/${run_name}
-    subdir: ${hydra.job.num}

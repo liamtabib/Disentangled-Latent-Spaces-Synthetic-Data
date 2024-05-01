@@ -1,5 +1,0 @@
-debug_cropped_celeba:
-  dataset_type: debug_cropped_celeba
-  dataset_version: base_version
-  images_dir: ${work_dir}/datasets/debug_cropped_celeba/images
-  annotation_file: ${work_dir}/datasets/debug_cropped_celeba/annotations.csv
