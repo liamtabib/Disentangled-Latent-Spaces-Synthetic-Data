@@ -1,5 +1,7 @@
 **/datasets/
 **/ext/
+projects/utils/
+projects/config/
 
 **/output/
 **/pretrained_models/
