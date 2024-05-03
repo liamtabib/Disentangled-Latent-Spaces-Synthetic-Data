@@ -12,10 +12,10 @@
   - Landmark detectors
 
 ## Code Structure
-- **The Implementation**: The `projects/disentanglement/` directory contains all implementations used in our work.
+- **The work**: The `projects/disentanglement/` directory contains the implementation of this project.
 - **External modules**: The `ext/` directory contains all external modules such as StyleGAN3, StyleGAN3 Encoder, and insightface (ArcFace recognition model). Clone those repositories and place them under `ext/`.
 
-## Running the Code
+## Training the T transformation:
 To run the project, follow these steps:
 1. Install required Python packages:
    pip install -r requirements.txt
