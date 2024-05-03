@@ -1,4 +1,4 @@
-# Disentangled Latent Spaces Project
+# Msc thesis, Machine Learning: Learning an Identity Separated GAN Latent Space With Self-Supervised Methods
 
 ## Environment Setup
 
