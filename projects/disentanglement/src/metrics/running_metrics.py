@@ -1,40 +1,28 @@
-import torch
-import numpy as np
-from itertools import combinations
-from tqdm import tqdm
-import pandas as pd
+# Standard imports
 import os
-from torchvision import transforms
-from PIL import Image
-from torchvision.utils import save_image
-from PIL import Image
-from torchvision import transforms
-import torch
-from tqdm import tqdm
-import torch
-import torch.nn as nn
-from torchvision import transforms
-from PIL import Image
-import pandas as pd
-import numpy as np
-from itertools import combinations
-import os
-import torch
-import torch.nn as nn
-import numpy as np
-import torch
-import torch.nn as nn
-import numpy as np
 import random
-from torchmetrics.image.fid import FrechetInceptionDistance
-import torch.nn.functional as F
+from itertools import combinations
+
+# Numeric and data handling
 import numpy as np
-import scipy.stats
 import pandas as pd
+import scipy.stats
 from sklearn.ensemble import GradientBoostingClassifier
-import pickle
 from sklearn.decomposition import PCA
+
+# PyTorch related imports
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torchmetrics.image.fid import FrechetInceptionDistance
+
+# Image processing and transformations
 from PIL import Image, ImageDraw, ImageFont
+from torchvision import transforms
+from torchvision.utils import save_image
+
+# Utility
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -59,21 +47,59 @@ Based on "A Framework for the Quantitative Evaluation of Disentangled
 Representations" (https://openreview.net/forum?id=By-7dz-AZ).
 """
 from tqdm import tqdm  # Ensure tqdm is imported
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+import scipy.stats
+from tqdm import tqdm
 
 class DCI:
+    """
+    Class to compute the Disentanglement, Completeness, and Informativeness (DCI) metrics for a given dataset.
+    
+    Attributes:
+        input (np.ndarray): Input data reshaped into the appropriate dimensions.
+        attributes (pd.DataFrame): Dataframe containing attributes for the dataset.
+        attrib_indices2 (pd.Index): Filtered indices of attributes based on a threshold.
+        attributes2 (pd.DataFrame): Filtered attributes data based on `attrib_indices2`.
+    """
+    
     def __init__(self, encoded_tensor):
-        # Load and prepare data
+        """
+        Initializes the DCI object with encoded tensor data.
+        
+        Args:
+            encoded_tensor (torch.Tensor): Tensor containing encoded data of shape (n_samples, features).
+        """
         self.input, self.attributes = self.load_data(encoded_tensor)
         self.attrib_indices2, self.attributes2 = self.preprocessing(self.attributes)
     
     @staticmethod
     def load_data(encoded_tensor):
+        """
+        Loads and processes the encoded tensor data.
+        
+        Args:
+            encoded_tensor (torch.Tensor): Tensor containing encoded data.
+        
+        Returns:
+            tuple: A tuple containing the reshaped input data and attributes.
+        """
         num_examples = encoded_tensor.size(0)
-        input_data = encoded_tensor.reshape(num_examples, 16 * 512)
+        input_data = encoded_tensor.reshape(num_examples, 16 * 512)  # Assuming specific dimensions for the latent space.
         attributes = pd.read_csv('datasets/celebahq/CelebAMask-HQ-attribute-anno.txt', sep="\s+", nrows=num_examples)
         return input_data, attributes
     
     def preprocessing(self, attributes):
+        """
+        Processes the attributes to filter out relevant indices based on a defined threshold.
+        
+        Args:
+            attributes (pd.DataFrame): Dataframe containing attributes.
+        
+        Returns:
+            tuple: A tuple containing filtered attribute indices and the filtered attributes dataframe.
+        """
         num_samples = attributes.shape[0]
         keep_threshold = int(num_samples * 0.05)  
         select = ((attributes > 0).sum(axis=0) > keep_threshold) & ((attributes < 0).sum(axis=0) > keep_threshold)
@@ -82,6 +108,12 @@ class DCI:
         return attrib_indices2, attributes2
     
     def evaluate(self):
+        """
+        Evaluates the DCI metrics by training classifiers and computing scores.
+        
+        Returns:
+            tuple: A tuple containing the importance matrix, average training loss, and average testing loss.
+        """
         x, y = self.input, (self.attributes2.values > 0).astype(int)
         p = np.random.permutation(len(y))
         split_index = int(0.5 * len(y))
@@ -91,9 +123,20 @@ class DCI:
         return importance_matrix, np.mean(train_loss), np.mean(test_loss)
 
     def compute_scores(self, x_train, y_train, x_test, y_test):
+        """
+        Computes scores for each feature using Gradient Boosting Classifiers.
+        
+        Args:
+            x_train (np.ndarray): Training data.
+            y_train (np.ndarray): Training labels.
+            x_test (np.ndarray): Testing data.
+            y_test (np.ndarray): Testing labels.
+        
+        Returns:
+            tuple: A tuple containing the importance matrix, list of training losses, and testing losses.
+        """
         importance_matrix = np.zeros((self.input.shape[1], len(self.attrib_indices2)), dtype=np.float64)
         train_loss, test_loss = [], []
-        # Integrate tqdm progress bar
         for i in tqdm(range(len(self.attrib_indices2)), desc="Training classifiers"):
             model = GradientBoostingClassifier()
             model.fit(x_train, y_train[:, i])
@@ -102,201 +145,35 @@ class DCI:
             test_loss.append(np.mean(model.predict(x_test) == y_test[:, i]))
         return importance_matrix, train_loss, test_loss
 
-    @staticmethod
-    def disentanglement(importance_matrix):
-        per_code = 1.0 - scipy.stats.entropy(importance_matrix.T + 1e-11, base=importance_matrix.shape[1])
-        code_importance = importance_matrix.sum(axis=1) / importance_matrix.sum()
-        return np.sum(per_code * code_importance)
-
-    @staticmethod
-    def completeness(importance_matrix):
-        per_factor = 1.0 - scipy.stats.entropy(importance_matrix + 1e-11, base=importance_matrix.shape[0])
-        factor_importance = importance_matrix.sum(axis=0) / importance_matrix.sum()
-        return np.sum(per_factor * factor_importance)
-
 
 def get_font(size=40):
-    # Modify the path according to your operating system and the font availability
+    """
+    Retrieves a custom font from the specified path or falls back to the default font.
+    
+    Args:
+        size (int): The size of the font to be loaded.
+    
+    Returns:
+        ImageFont: The loaded font object, either custom or default.
+    
+    Description:
+        This function attempts to load a TrueType font from a specified path on a Linux system.
+        If the specified font is not found or the path is incorrect, it defaults to the system's default font.
+    """
+    # Dictionary mapping operating systems to their respective font paths
     font_paths = {
         'linux': '../../../../../usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf'
     }
-    # Assuming the script is running on Linux
+    # Retrieve the path for the current operating system (assuming Linux here)
     font_path = font_paths['linux']
     try:
+        # Attempt to load the font from the specified path with the given size
         font = ImageFont.truetype(font_path, size)
     except IOError:
+        # Handle the case where the font is not available by falling back to the default font
         print("Font path is incorrect or font is not available. Using default font.")
-        font = ImageFont.load_default()  # Fallback to default if specific font fails
+        font = ImageFont.load_default()  # Use default font if specific font fails
     return font
-
-
-class detection_FR_latent_space_distance(nn.Module):
-    """
-    Same function as FR_latent_space_distance but with a face cropping before"""
-
-    def __init__(self, generator, face_detection, face_recognition, save_path):
-        super(detection_FR_latent_space_distance, self).__init__()
-        self.num_pairs = 2500
-        self.set_seed()  
-        self.generator = generator
-        self.face_detection = face_detection
-        self.face_recognition = face_recognition
-        self.save_path = save_path
-
-        with open(self.save_path, 'w') as file:
-            file.write(f"Experiment Parameters:\nNumber of Pairs: {self.num_pairs}\n")
-            file.write("epoch,FID,positives_distance, negatives_distance, Ratio\n")
-
-
-    def set_seed(self):
-            seed = 10
-            torch.manual_seed(seed)
-            np.random.seed(seed)
-            random.seed(seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(seed)
-
-
-    def select_pairs(self, identity_ids_tensor ):
-        pairs = []
-        indices = np.arange(len(identity_ids_tensor))
-        np.random.shuffle(indices)
-
-        for i in range(0, len(indices) - 1, 2):  # Step by 2 to pair adjacent elements and to ensure same image is not picked twice
-            if len(pairs) >= self.num_pairs:
-                break
-            if identity_ids_tensor[indices[i]] != identity_ids_tensor[indices[i + 1]]:
-                pairs.append((indices[i], indices[i + 1]))
-
-        return pairs
-
-    def forward(self, encoded_images_tensor,identity_ids_tensor ,model, epoch):
-
-        if isinstance(model, torch.nn.DataParallel):
-            model = model.module
-        
-        positives_distances = []
-        negatives_distances = []
-
-        pairs = self.select_pairs(identity_ids_tensor)
-
-        fid = FrechetInceptionDistance(feature=64).to(device)
-
-
-        for idx1, idx2 in tqdm(pairs, desc='Processing pairs'):
-
-            w_star_i, w_star_j = encoded_images_tensor[idx1].unsqueeze(0).to(device), encoded_images_tensor[idx2].unsqueeze(0).to(device)
-
-            w_star_i = w_star_i.view(w_star_i.size(0), -1)  # Reshapes to [batchsize, 8192]
-            w_star_j = w_star_j.view(w_star_j.size(0), -1)  # Reshapes to [batchsize, 8192]
-
-
-            half_latent_space_size = w_star_j.size(1) // 2
-
-            w_star_i_identity = torch.cat([w_star_i[:, :half_latent_space_size],w_star_j[:, half_latent_space_size:]], dim=1).view(-1, 16, 512)
-            w_star_j_identity = torch.cat([w_star_j[:, :half_latent_space_size],w_star_i[:, half_latent_space_size:]], dim=1).view(-1, 16, 512)
-            w_star_i = w_star_i.view(-1, 16, 512)
-            w_star_j = w_star_j.view(-1, 16, 512)
-
-            # map to W^+
-            w_plus_i = model.inverse_T(w_star_i)
-            w_plus_j = model.inverse_T(w_star_j)
-            w_plus_i_identity = model.inverse_T(w_star_i_identity)
-            W_plus_j_identity = model.inverse_T(w_star_j_identity)
-
-                       # map to I
-            i_image = self.generator(w_plus_i)
-            j_image = self.generator(w_plus_j)
-            i_identity_image = self.generator(w_plus_i_identity)
-            j_identity_image = self.generator(W_plus_j_identity)
-
-            # Normalize I
-            i_image = (i_image * 0.5 + 0.5).clamp(0, 1)
-            j_image = (j_image * 0.5 + 0.5).clamp(0, 1)
-            i_identity_image = (i_identity_image * 0.5 + 0.5).clamp(0, 1)
-            j_identity_image = (j_identity_image * 0.5 + 0.5).clamp(0, 1)
-
-
-            # Create a transform to convert tensors to PIL Images
-            to_pil = transforms.ToPILImage()
-
-            # Apply the transform to your images
-            i_image_pil = to_pil(i_image.squeeze().cpu())
-            j_image_pil = to_pil(j_image.squeeze().cpu())
-            i_identity_image_pil = to_pil(i_identity_image.squeeze().cpu())
-            j_identity_image_pil = to_pil(j_identity_image.squeeze().cpu())
-
-
-            distance=self.get_distance(i_image_pil, i_identity_image_pil)
-            if distance is not None:
-                positives_distances.append(distance)
-
-            distance = self.get_distance(j_image_pil, j_identity_image_pil)
-            if distance is not None:
-                positives_distances.append(distance)
-
-            distance = self.get_distance(i_image_pil, j_identity_image_pil)
-            if distance is not None:
-                negatives_distances.append(distance)
-
-            distance = self.get_distance(j_image_pil, i_identity_image_pil)
-            if distance is not None:
-                negatives_distances.append(distance)
-
-            real_images = torch.cat([i_image,j_image], dim=0)
-            fake_images = torch.cat([i_identity_image,j_identity_image], dim=0)
-
-            fid.update(real_images.to(torch.uint8).to(device), real=True)
-            fid.update(fake_images.to(torch.uint8).to(device), real=False)
-
-            del real_images, fake_images
-            torch.cuda.empty_cache()
-
-        average_positive_distances = np.mean(positives_distances)
-        average_negative_distances = np.mean(negatives_distances)
-
-        
-        fid_score = fid.compute().cpu()
-          
-        self.save_statistics(epoch, fid_score, average_positive_distances, average_negative_distances)
-    
-
-    def get_distance(self, img1, img2):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Ensure device is defined
-
-        cropped_image1, prob1 = self.face_detection(img1, return_prob=True)
-        cropped_image2, prob2 = self.face_detection(img2, return_prob=True)
-
-        if cropped_image1 is None or cropped_image2 is None:
-            print("Face detection failed for one or both images. Prediction cannot be made.")
-            return None
-
-        # Move cropped images to the selected device
-        cropped_image1 = cropped_image1.to(device)
-        cropped_image2 = cropped_image2.to(device)
-
-        # Generate embeddings
-        with torch.no_grad():
-            embedding1 = self.face_recognition(cropped_image1.unsqueeze(0)).squeeze()  # Add and remove batch dimension
-            embedding2 = self.face_recognition(cropped_image2.unsqueeze(0)).squeeze()
-
-        # Compute cosine similarity between the two embeddings
-        embedding1_norm = embedding1 / (embedding1.norm(p=2) + 1e-6)  # Normalize embeddings
-        embedding2_norm = embedding2 / (embedding2.norm(p=2) + 1e-6)
-        
-        similarity = torch.dot(embedding1_norm, embedding2_norm).item()  # Compute dot product
-        return similarity
-
-
-    def save_statistics(self, epoch, fid_score, positives_distance, negatives_distance):
-            ratio_distance = positives_distance / negatives_distance
-            with open(self.save_path, 'a') as file:
-                file.write(
-                    f"{epoch},{fid_score:.3f},{positives_distance:.3f},{negatives_distance:.3f},{ratio_distance:.3f}\n"
-                )
-
-
-
 
 
 
@@ -405,172 +282,6 @@ def mix_identity(Generator, model, save_path):
     save_image(final_grid, save_path, nrow=grid_size)
 
 
-def save_perturbed_images(Generator, model, encoded_images_tensor, save_path):
-    """
-    For each selected image, this function encodes the image, perturbs each half of the latent vector in different ways,
-    generates new images for each perturbed vector, and saves the original along with the perturbed images.
-
-    The perturbation involves using the mean of the latent vectors from a set of encoded images to perturb
-    the halves of another set of latent vectors, creating variations in the identity and non-identity aspects of the images.
-
-    Parameters:
-    - Generator: The generator model of a GAN used to generate images from latent vectors.
-    - model: The DisGAN model used for encoding images and their inverse transformation.
-    - encoded_images_tensor: A tensor of encoded images used to calculate the mean latent vector for perturbation.
-    - save_path: Path where the generated image grid will be saved.
-
-    This function demonstrates manipulating the latent space to observe changes in generated images, specifically focusing
-    on identity and non-identity aspects by perturbing different halves of the latent space.
-    """
-
-    if isinstance(model, torch.nn.DataParallel):
-        model = model.module
-    Generator.to('cuda')
-
-    image_paths = [
-        'datasets/celebahq/images/771.jpg', 'datasets/celebahq/images/1170.jpg',
-        'datasets/celebahq/images/1732.jpg', 'datasets/celebahq/images/1826.jpg',
-        'datasets/celebahq/images/19978.jpg', 'datasets/celebahq/images/19336.jpg'
-    ]
-
-    encoded_images_tensor = encoded_images_tensor.reshape(30000, -1)
-    means = torch.mean(encoded_images_tensor, dim=0).unsqueeze(0).to('cuda')
-
-    transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-    ])
-
-    all_images = []
-
-    for image_path in tqdm(image_paths, desc="Processing images"):
-        img = Image.open(image_path).convert('RGB')
-        img_tensor = transform(img).unsqueeze(0).to('cuda')
-
-        with torch.no_grad():
-            w_plus, w_hat = model(img_tensor)
-
-            # Generate perturbed examples
-            w_hat_reshaped = w_hat.view(w_hat.size(0), -1)  # Reshapes to [batchsize, 8192]
-            half_latent_space_size = w_hat_reshaped.size(1) // 2
-            
-            #Perturb using w' = - w + 2u on each half, keeping the other half intact
-            # Tensor with the first half zero and the second half unchanged
-            zeros_first_half_w_hat_second_half = torch.cat([
-            torch.zeros(w_hat_reshaped[:, :half_latent_space_size].shape).to(w_hat_reshaped.device), 
-            w_hat_reshaped[:, half_latent_space_size:]], dim=1)
-            # Tensor with the second half zero and the first half unchanged
-            zeros_second_half_w_hat_first_half = torch.cat([
-            w_hat_reshaped[:, :half_latent_space_size], 
-            torch.zeros(w_hat_reshaped[:, half_latent_space_size:].shape).to(w_hat_reshaped.device)], dim=1)
-
-            zeros_first_half_means_second_half = torch.cat([
-            torch.zeros(means[:, :half_latent_space_size].shape).to(means.device), 
-            means[:, half_latent_space_size:]], dim=1)
-            # Tensor with the second half zero and the first half unchanged
-            zeros_second_half_means_first_half = torch.cat([
-            means[:, :half_latent_space_size], 
-            torch.zeros(means[:, half_latent_space_size:].shape).to(means.device)], dim=1)
-
-            resampled_identity = zeros_first_half_w_hat_second_half - zeros_second_half_w_hat_first_half + 2 * zeros_second_half_means_first_half
-            resampled_non_identity = zeros_second_half_w_hat_first_half - zeros_first_half_w_hat_second_half + 2 * zeros_first_half_means_second_half
-            
-            resampled_identity = resampled_identity.view(-1, 16, 512)
-            resampled_non_identity = resampled_non_identity.view(-1, 16, 512)
-
-            # map to W^+
-            reconstructed_w_plus_resampled_identity = model.inverse_T(resampled_identity)
-            reconstructed_w_plus_resampled_non_identity = model.inverse_T(resampled_non_identity)
-
-            generated_img = Generator(w_plus)
-            reconstructed_img_resampled_identity = Generator(reconstructed_w_plus_resampled_identity)
-            reconstructed_img_resampled_non_identity = Generator(reconstructed_w_plus_resampled_non_identity)
-            
-
-            # Normalize the images to [0, 1] for visualization
-            generated_img_normalized = (generated_img * 0.5 + 0.5).clamp(0, 1)
-            reconstructed_img_resampled_identity_normalized = (reconstructed_img_resampled_identity * 0.5 + 0.5).clamp(0, 1)
-            reconstructed_img_resampled_non_identity_normalized = (reconstructed_img_resampled_non_identity * 0.5 + 0.5).clamp(0, 1)
-
-            combined_images = torch.cat((
-                generated_img_normalized,
-                reconstructed_img_resampled_identity_normalized,
-                reconstructed_img_resampled_non_identity_normalized
-            ), dim=3)
-
-            all_images.append(combined_images)
-
-    # Concatenate all rows vertically
-    all_images_combined = torch.cat(all_images, dim=2).squeeze(0)
-    save_image(all_images_combined, save_path, nrow=3)  # Adjust nrow to 4 for 4 images per row
-    print('----')
-    print(encoded_images_tensor.shape)
-
-
-def ratio_metrics(encoded_images, identity_ids):
-    """
-    Calculate intra-identity and inter-identity distances.
-    
-    Args:
-    - encoded_images: Tensor of shape [N, D_1, D_2] where N is the number of images
-    - identity_ids: Tensor of shape [N], where each element is the identity ID
-                    corresponding to the encoded images.
-    
-    Returns:
-    - ratio_identity: the ratio of intra to inter distance for the identity part of the tensor
-    - ratio_non_identity: the ratio of intra to inter distance for the non-identity part of the tensor
-    """
-    intra_distances_identity = []
-    inter_distances_identity = []
-
-
-    intra_distances_non_identity = []
-    inter_distances_non_identity = []
-
-    encoded_images = encoded_images.view(encoded_images.size(0), -1)
-    half_size = encoded_images.size(1) // 2
-    first_half = encoded_images[:, :half_size]
-    second_half = encoded_images[:,half_size: ]
-
-    # Convert tensors to numpy for easier manipulation
-    encoded_first_half_np = first_half.numpy()
-    encoded_second_half_np = second_half.numpy()
-    identity_ids_np = identity_ids.numpy()
-
-    # Iterate over each unique identity
-    for identity in tqdm(np.unique(identity_ids_np), desc="Processing identities"):
-        same_id_indices = np.where(identity_ids_np == identity)[0]
-        diff_id_indices = np.where(identity_ids_np != identity)[0]
-
-        # Intra-identity pairs
-        for pair in combinations(same_id_indices, 2):
-            distance_identity = np.linalg.norm(encoded_first_half_np[pair[0]] - encoded_first_half_np[pair[1]])
-            distance_non_identity = np.linalg.norm(encoded_second_half_np[pair[0]] - encoded_second_half_np[pair[1]])
-            intra_distances_identity.append(distance_identity)
-            intra_distances_non_identity.append(distance_non_identity)
-
-        # Inter-identity pairs - randomly sample to reduce computation
-        if len(diff_id_indices) > 1:
-            sampled_diff_ids = np.random.choice(diff_id_indices, 2, replace=False)
-            distance_identity = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]] - encoded_first_half_np[sampled_diff_ids[1]])
-            distance_non_identity = np.linalg.norm(encoded_second_half_np[sampled_diff_ids[0]] - encoded_second_half_np[sampled_diff_ids[1]])
-            inter_distances_identity.append(distance_identity)
-            inter_distances_non_identity.append(distance_non_identity)
-
-    # Calculate average distances
-    intra_distances_identity = np.mean(intra_distances_identity)
-    inter_distances_identity = np.mean(inter_distances_identity)
-
-    intra_distances_non_identity = np.mean(intra_distances_non_identity)
-    inter_distances_non_identity = np.mean(inter_distances_non_identity)
-
-    ratio_identity = intra_distances_identity/inter_distances_identity
-    ratio_non_identity = intra_distances_non_identity / inter_distances_non_identity
-
-    return ratio_identity , ratio_non_identity 
-
-
 
 def ratio_identity_part(encoded_images, identity_ids):
     """
@@ -614,26 +325,27 @@ def ratio_identity_part(encoded_images, identity_ids):
     identity_ids_np = identity_ids.numpy()
 
     # Iterate over each unique identity
-    for identity in tqdm(np.unique(identity_ids_np), desc="Processing identities"):
+    for identity in tqdm(np.unique(identity_ids_np), desc="pairwise distances metric"):
         same_id_indices = np.where(identity_ids_np == identity)[0]
         diff_id_indices = np.where(identity_ids_np != identity)[0]
 
         # Intra-identity pairs
         for pair in combinations(same_id_indices, 2):
+
             norm_v1 = np.linalg.norm(encoded_first_half_np[pair[0]])
             norm_v2 = np.linalg.norm(encoded_first_half_np[pair[1]])
-            distance_identity = np.dot(encoded_first_half_np[pair[0]], encoded_first_half_np[pair[1]]) / (norm_v1 * norm_v2)
-            #distance_identity = np.linalg.norm(encoded_first_half_np[pair[0]] - encoded_first_half_np[pair[1]])
+            cosine_similarity = np.dot(encoded_first_half_np[pair[0]], encoded_first_half_np[pair[1]]) / (norm_v1 * norm_v2)
+            distance_identity = 1 - cosine_similarity
             intra_distances_identity.append(distance_identity)
 
         # Inter-identity pairs - randomly sample to reduce computation
-        if len(diff_id_indices) > 1:
-            sampled_diff_ids = np.random.choice(diff_id_indices, 2, replace=False)
-            norm_v1 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]])
-            norm_v2 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[1]])
-            distance_identity = np.dot(encoded_first_half_np[sampled_diff_ids[0]], encoded_first_half_np[sampled_diff_ids[1]]) / (norm_v1 * norm_v2)
-            #distance_identity = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]] - encoded_first_half_np[sampled_diff_ids[1]])
-            inter_distances_identity.append(distance_identity)
+            if len(diff_id_indices) > 1:
+                sampled_diff_ids = np.random.choice(diff_id_indices, 2, replace=False)
+                norm_v1 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]])
+                norm_v2 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[1]])
+                cosine_similarity = np.dot(encoded_first_half_np[sampled_diff_ids[0]], encoded_first_half_np[sampled_diff_ids[1]]) / (norm_v1 * norm_v2)
+                distance_identity = 1 - cosine_similarity
+                inter_distances_identity.append(distance_identity)
 
     # Calculate average distances
     average_positive_distances_first_half = np.mean(intra_distances_identity)
@@ -747,7 +459,7 @@ class FR_latent_space_distance(nn.Module):
 
     def __init__(self, generator, face_detection, face_recognition, save_path):
         super(FR_latent_space_distance, self).__init__()
-        self.num_pairs = 2500
+        self.num_pairs = 1000
         self.set_seed()  # Set a fixed seed for reproducibility
         self.generator = generator
         self.face_detection = face_detection
@@ -814,7 +526,7 @@ class FR_latent_space_distance(nn.Module):
 
         fid = FrechetInceptionDistance(feature=64).to(device)  # Initialize FID calculation
 
-        for idx1, idx2 in tqdm(pairs, desc='Processing pairs'):
+        for idx1, idx2 in tqdm(pairs, desc='FRN metric'):
             # Process each pair to generate images and compute distances
             w_star_i, w_star_j = encoded_images_tensor[idx1].unsqueeze(0).to(device), encoded_images_tensor[idx2].unsqueeze(0).to(device)
 
@@ -906,7 +618,9 @@ class FR_latent_space_distance(nn.Module):
 
         # Calculate cosine similarity
         similarity = torch.dot(embedding1_norm, embedding2_norm).item()
-        return similarity
+        distance = 1 - similarity
+
+        return distance
 
     def save_statistics(self, epoch, fid_score, positives_distance, negatives_distance):
         """
@@ -1032,6 +746,48 @@ def mix_landmarks(Generator, model, save_path):
     # Save the final grid to a file
     save_image(final_grid, save_path, nrow=grid_size)
 
+
+
+def variance_metric(encoded_images_tensor, identity_ids_tensor):
+    """
+    Calculate the average variance of latent vectors grouped by identity.
+
+    Args:
+        encoded_images_tensor (torch.Tensor): Tensor of shape (N, D) where N is the number of images,
+                                              and D is the dimension of the encoded latent vectors.
+        identity_ids_tensor (torch.Tensor): Tensor of shape (N,) containing identity IDs for each image.
+
+    Returns:
+        float: The average variance of latent vectors for each unique identity.
+    """
+    encoded_images_tensor = encoded_images_tensor.view(encoded_images_tensor.size(0), -1)
+    half_size = encoded_images_tensor.size(1) // 2
+    encoded_images_tensor = encoded_images_tensor[:, :half_size]
+
+    unique_ids = torch.unique(identity_ids_tensor)
+    variances = []
+
+
+    for identity_id in unique_ids:
+        # Mask to select only the latents for the current identity
+        mask = identity_ids_tensor == identity_id
+        identity_latents = encoded_images_tensor[mask]
+
+
+        # Calculate variance across the latent dimensions for this identity
+        if identity_latents.size(0) > 1:  # Ensure there are enough samples to calculate variance
+
+            identity_variance = torch.var(identity_latents, dim=0, unbiased=True)
+            mean_variance = torch.mean(identity_variance)  # Mean variance across all dimensions
+            variances.append(mean_variance)
+
+    # Calculate the average of mean variances across all identities
+    if variances:
+        average_variance = torch.mean(torch.stack(variances)).item()
+    else:
+        average_variance = 0
+
+    return average_variance
 
 
 def pca_with_perturbation(Generator, model, encoded_images, save_path, n_components=3, scales=[-2, -1.33, -0.67, 0, 0.67, 1.33, 2]):

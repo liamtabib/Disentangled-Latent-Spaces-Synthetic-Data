@@ -6,7 +6,6 @@ import torch.nn.functional as F
 import cv2
 import dlib
 import numpy as np
-import projects.disentanglement.src.utils as utils
 
 
 class DiscriminatorLoss(nn.Module):
@@ -220,6 +219,8 @@ class LandmarkDetector(nn.Module):
 
             if len(faces) == 0:
                 return None
+            if len(faces) > 1:
+                return None
 
             for face in faces:
                 landmarks = self.predictor(gray, face)
@@ -247,15 +248,15 @@ class LandmarkDetector(nn.Module):
         return torch.tensor(batch_bounding_boxes, dtype=torch.int32, device=device)
 
 class LandmarkLoss(nn.Module):
-    def __init__(self, lm_network, ratio_inside_outside):
+    def __init__(self, lm_network, weight_inside):
         super(LandmarkLoss, self).__init__()
         self.lm_network = lm_network
-        self.ratio_inside_outside = ratio_inside_outside
+        self.weight_inside = weight_inside
 
     def get_bounding_boxes(self, images):
         return self.lm_network(images)
 
-    def forward(self, generator, model, w_star):
+    def forward(self, generator, model, w_star,same_dim: bool,means,variances):
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
 
@@ -271,28 +272,45 @@ class LandmarkLoss(nn.Module):
         loss = 0.0
         for k in range(bounding_boxes.shape[1]):
             perturbed_w_star = w_star.clone()
-            perturbed_w_star[:, k] += torch.randn_like(w_star[:, k], memory_format=torch.preserve_format)  # in-place addition
-            
-            perturbed_w_plus = model.inverse_T(perturbed_w_star.view(-1, 16, 512))
-            perturbed_images = generator(perturbed_w_plus).mul_(0.5).add_(0.5).clamp_(0, 1)
 
-            pixel_diffs = (reconstructed_images - perturbed_images).pow_(2)  # in-place power operation
-            
-            masks = torch.zeros_like(reconstructed_images)
-            for idx in range(bounding_boxes.shape[0]):
-                x, y, xw, yh = bounding_boxes[idx, k]
-                masks[idx, :, y:yh, x:xw] = 1
-            
-            outside_bb_loss = ((1 - masks) * pixel_diffs).sum()
+            if same_dim:
+                # Perturbing the k'th dimension
+                perturbation = torch.normal(means.squeeze()[k], variances.squeeze()[k].sqrt(), size=(w_star.size(0),), device=w_star.device)
+                perturbed_w_star[:, k] += perturbation
+                perturbed_w_plus = model.inverse_T(perturbed_w_star.view(-1, 16, 512))
+                perturbed_images = generator(perturbed_w_plus).mul_(0.5).add_(0.5).clamp_(0, 1)
+                pixel_diffs = (reconstructed_images - perturbed_images).pow_(2)  # in-place power operation
 
-            inside_bb_loss =  (masks * pixel_diffs).sum()
-
-            with torch.no_grad():
+                masks = torch.zeros_like(reconstructed_images)
+                for idx in range(bounding_boxes.shape[0]):
+                    x, y, xw, yh = bounding_boxes[idx, k]
+                    masks[idx, :, y:yh, x:xw] = 1
                 
-                weight_inside = (self.ratio_inside_outside * outside_bb_loss ) / inside_bb_loss
-            inside_bb_loss = weight_inside * inside_bb_loss
-            
-            loss += torch.clamp(outside_bb_loss - inside_bb_loss, min=0)
+                outside_bb_loss = ((1 - masks) * pixel_diffs).sum()
+                inside_bb_loss =  (masks * pixel_diffs).sum()
+                print(f"outside loss: {outside_bb_loss}")
+                print(f"inside loss: {inside_bb_loss}")
 
-        normalized_loss = loss / (bounding_boxes.shape[1] * torch.tensor(reconstructed_images.shape[2:]).prod() * reconstructed_images.shape[0])
-        return normalized_loss
+                loss += outside_bb_loss  - inside_bb_loss
+
+            else:
+
+                perturbations_other_dims = torch.normal(means, variances.sqrt())
+                perturbations_other_dims[:, k] = 0  # Zero out the perturbation for the k'th dimension
+                perturbed_w_star_other_dims = w_star + perturbations_other_dims
+                perturbed_w_plus_other_dims = model.inverse_T(perturbed_w_star_other_dims.view(-1, 16, 512))
+                perturbed_images_other_dims = generator(perturbed_w_plus_other_dims).mul_(0.5).add_(0.5).clamp_(0, 1)
+
+                pixel_diffs_other_dims = (reconstructed_images - perturbed_images_other_dims).pow(2)
+
+                masks = torch.zeros_like(reconstructed_images)
+                for idx in range(bounding_boxes.shape[0]):
+                    x, y, xw, yh = bounding_boxes[idx, k]
+                    masks[idx, :, y:yh, x:xw] = 1
+
+                other_dimensions_loss =  (masks * pixel_diffs_other_dims).sum()
+                print(f"other dimensions loss: {other_dimensions_loss/100}")
+                loss +=  other_dimensions_loss/100
+
+        
+        return loss

@@ -1,6 +1,94 @@
+
+"""
+#TODO In code:
+
+Write backup script to backup train.py, losses.py, running_metrics.py, thesis_visuals, 
+0.
+
+Implement interpolation metric in visualisations directory
+
+1. For each loss and each non-LR hyperparameter, Find the optimal LR:
+
+Contrastive loss:
+n_pairs: LR = 
+Triplet: LR =
+
+discriminator losses:
+pre-trained: LR =
+not: LR =
+
+Switch loss: LR = 
+
+Landmark loss: LR = 
+
+2. Run with all the samples. Modifications required: Save the model more often. Double check the metrics are correctly computed.
+
+3. Find the best combination
+
+Miscelaneous:
+
+##############################################################################################
+
+import numpy as np
+from itertools import combinations
+from tqdm import tqdm
+
+def ratio_identity_part(encoded_images, identity_ids):
+
+    encoded_images = encoded_images.view(encoded_images.size(0), -1)
+    half_size = encoded_images.size(1) // 2
+    first_half = encoded_images[:, :half_size]
+
+    # Convert tensors to numpy for easier manipulation
+    encoded_first_half_np = first_half.numpy()
+    identity_ids_np = identity_ids.numpy()
+
+    # Iterate over each unique identity
+    for identity in tqdm(np.unique(identity_ids_np), desc="Processing identities"):
+        same_id_indices = np.where(identity_ids_np == identity)[0]
+        diff_id_indices = np.where(identity_ids_np != identity)[0]
+
+        # Generate all possible intra-identity pairs
+        for pair in combinations(same_id_indices, 2):
+            norm_v1 = np.linalg.norm(encoded_first_half_np[pair[0]])
+            norm_v2 = np.linalg.norm(encoded_first_half_np[pair[1]])
+            distance_identity = np.dot(encoded_first_half_np[pair[0]], encoded_first_half_np[pair[1]]) / (norm_v1 * norm_v2)
+            intra_distances_identity.append(distance_identity)
+            
+            # Sample an inter-identity pair for each intra-identity pair
+            if len(diff_id_indices) > 1:
+                sampled_diff_ids = np.random.choice(diff_id_indices, 2, replace=False)
+                norm_v1 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]])
+                norm_v2 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[1]])
+                distance_identity = np.dot(encoded_first_half_np[sampled_diff_ids[0]], encoded_first_half_np[sampled_diff_ids[1]]) / (norm_v1 * norm_v2)
+                inter_distances_identity.append(distance_identity)
+
+    # Calculate average distances
+    average_positive_distances_first_half = np.mean(intra_distances_identity)
+    average_negative_distances_first_half = np.mean(inter_distances_identity)
+
+    ratio_distances = average_positive_distances_first_half / average_negative_distances_first_half
+
+    return average_positive_distances_first_half, average_negative_distances_first_half, ratio_distances
+
+    
+"""
+
+
 ##############################################################################################
 # HYPERPARAMETERS TO TUNE
-#------------------------------------------#
+#------------------------------------------------------------------------------------------------------------------------#
+# BS= 2 (test=8)
+# experiment with weight_inside: 0 or 1
+# Run2: WI= 0, lr = 0.0001 # problem: okay but landmarks not changing
+# Run3: WI= 0 , lr = 0.0005 # problem: direct collapse
+# Run4: WI = 1 , lr = 0.0005 # same direct collapse
+# Run5: WI = 1 , lr = 0.0001
+#Run 1: find learning rate
+landmark_loss_on = False  # Enable or disable landmark loss.
+lambda_landmark = 1  # Weighting factor for landmark loss.
+weight_inside = 1
+#------------------------------------------------------------------------------------------------------------------------#
 #BS=2 (test=8), n=10.000
 switch_loss_on = False  # Enable or disable switch loss.
 lambda_switch = 1  # Weighting factor for switch loss.
@@ -9,25 +97,23 @@ lambda_switch = 1  # Weighting factor for switch loss.
 #run2: same as run1 after changing to probability
 #run3: same but half the learning rate 0.0000005
 #next run: cut learning rate to 0.0000001 and atleast 30 epochs (3 days)
-#------------------------------------------#
-# BS= 4 (test=8)
-# experiment with ratio_inside_outside
-landmark_loss_on = False  # Enable or disable landmark loss.
-lambda_landmark = 1  # Weighting factor for landmark loss.
-ratio_inside_outside = 2
-#------------------------------------------#
+#------------------------------------------------------------------------------------------------------------------------#
+
 # BS = 16
 #run1: triplet False, lr = 0.0001. training a bit too fast perhaps. decrease learning rate and train for longer time
 #run2: same as run1 but with triplet loss. problem: strong collapse
 #run3: decreased learning rate for triplet. convergance very slow and weird collapse.
 # Conclusion: n_pairs much superior
-# run4: try n_pairs 0.00001
+# run4:  n_pairs 0.00001
+# run5:  n_pairs 0.00005
+
+#Conclusion: optimal is n_pairs: try for longer training time with lr = 0.0001, 0.00001, or 0.00005.
 
 #experiment  with  Triplet/n_pairs
 contrastive_loss_on = True  # Enable or disable contrastive loss.
 triplet = False  # Use triplet formulation for contrastive loss, otherwise n_pairs
 lambda_contrastive = 1  # Weighting factor for contrastive loss.
-#------------------------------------------#
+#------------------------------------------------------------------------------------------------------------------------#
 # BS = 16
 #experiment with pretrained, always using both networks
 
@@ -35,17 +121,19 @@ discriminator_loss_on = False  # Enable or disable discriminator loss.
 only_second_half_ID_D = False  # Use only the ID Discriminator to drive out ID information from the second half of the latent space.
 pretained_ID_D = False  # Toggle the use of a pretrained ID Discriminator.
 lambda_discriminator = 1  # Weighting factor for discriminator loss.
-#-----------------------------------------#
+#-----------------------------------------------------------------------------------------------------------------------#
 
 # General training hyperparameters.
 train_batch_size = 16
 test_batch_size = 16
-lr = 0.003  # Learning rate for the NICE network. LR scales linearly with the number of training images?
+lr = 0.0001  # Learning rate for the NICE network. LR scales linearly with the number of training images?
 epochs = 30  # Number of training epochs.
-num_training_images = 100  # Choose either 30 000 for full training or a subset for experimentation.
-num_encodings = 100  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
+num_training_images = 10000  # Choose either 30 000 for full training or a subset for experimentation.
+num_encodings = 5000  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
+
 
 ##############################################################################################
+
 
 # Standard Library Imports
 import os
@@ -81,7 +169,8 @@ from projects.disentanglement.src.metrics.running_metrics import (
     FR_latent_space_distance, 
     ratio_identity_part,
     DCI,
-    pca_with_perturbation
+    pca_with_perturbation,
+    variance_metric
 )
 
 
@@ -92,6 +181,8 @@ os.environ["HYDRA_FULL_ERROR"] = "1"
 def train(
     generator,
     model,
+    means,
+    variances,
     data_loader,
     optimizer_disgan,
     optimizer_discriminators,
@@ -270,8 +361,11 @@ def train(
 
         else: switch_loss_output = torch.tensor(0.0, device=device, requires_grad=True)
 
+
         if landmark_loss_fn is not None:
-            landmark_loss_output = landmark_loss_fn(generator, model, anchor)
+            random_num = torch.bernoulli(torch.tensor([0.5]))
+            same_ID = True if random_num.item() == 1 else False
+            landmark_loss_output = landmark_loss_fn(generator, model, anchor,same_ID,means,variances)
 
         else: landmark_loss_output = torch.tensor(0.0, device=device, requires_grad=True)
 
@@ -330,6 +424,8 @@ def train(
 def validate(
     generator,
     model,
+    means,
+    variances,
     data_loader,
     contrastive_loss_fn,
     discriminator_loss_fn,
@@ -480,7 +576,9 @@ def validate(
             else: switch_loss_output = torch.tensor(0.0, device=device, requires_grad=True)
 
             if landmark_loss_fn is not None:
-                landmark_loss_output = landmark_loss_fn(generator, model, anchor)
+                random_num = torch.bernoulli(torch.tensor([0.5]))
+                same_ID = True if random_num.item() == 1 else False
+                landmark_loss_output = landmark_loss_fn(generator, model, anchor,same_ID,means,variances)
 
             else: landmark_loss_output = torch.tensor(0.0, device=device, requires_grad=True)
 
@@ -521,7 +619,7 @@ def validate(
 
 @hydra.main(version_base="1.1", config_path="../config", config_name="config_disent")
 def main(cfg):
-
+    utils.set_seeds(42)
     #Start a timer for the complete execution
     start = time.time()
 
@@ -576,7 +674,7 @@ def main(cfg):
         file.write(f"  - Lambda for Switch Loss: {lambda_switch}\n")
         file.write(f"Landmark Loss Enabled: {landmark_loss_on}\n")
         file.write(f"  - Lambda for Landmark Loss: {lambda_landmark}\n")
-        file.write(f"  - ratio inside outside: {ratio_inside_outside}\n")
+        file.write(f"  - ratio inside outside: {weight_inside}\n")
 
     # Initialize face detection and recognition tools for further training and evaluation.
     mtcnn = MTCNN(keep_all=False, device=device)
@@ -620,7 +718,7 @@ def main(cfg):
     if landmark_loss_on:
         predictor_path = "projects/disentanglement/pretrained_models/shape_predictor_68_face_landmarks.dat"
         landmark_model = LandmarkDetector(predictor_path)
-        landmark_loss_fn = LandmarkLoss(landmark_model, ratio_inside_outside)
+        landmark_loss_fn = LandmarkLoss(landmark_model, weight_inside)
     else: landmark_loss_fn = None
         
     ##################################################################################
@@ -702,31 +800,51 @@ def main(cfg):
         if landmark_loss_on:
             saved_landmark_filepath = os.path.join(output_dir, f"mixed_landmark_epoch_{epoch}.jpg")    
             mix_landmarks(generator,model,saved_landmark_filepath)
+            encoded_images_tensor,identity_ids_tensor = encode_dataset(model,num_encodings)
+            encoded_images_tensor = encoded_images_tensor.view(encoded_images_tensor.size(0), -1).to('cuda')
+
+            means = torch.mean(encoded_images_tensor, dim=0).unsqueeze(0).to(device)
+            variances = torch.var(encoded_images_tensor, dim=0, unbiased=True).unsqueeze(0).to(device)
+        
+
+        else:
 
         # Encode datasets to analyze latent space distances.
-        encoded_images_tensor,identity_ids_tensor = encode_dataset(model,num_encodings)
+            encoded_images_tensor,identity_ids_tensor = encode_dataset(model,num_encodings)
+            means, variances = None, None
 
-        saved_pca_filepath = os.path.join(output_dir, f"pca_epoch_{epoch}.jpg")    
-        pca_with_perturbation(generator,model,encoded_images_tensor,saved_pca_filepath)
+            variance_metric_filepath = os.path.join(output_dir, f"variance_metric.txt")
 
-        # distances in latent space
-        average_positive_distances_first_half , average_negative_distances_first_half, ratio_distances = ratio_identity_part(encoded_images_tensor,identity_ids_tensor)
-        latent_distances_filename = os.path.join(output_dir, "latent_distances_FH.txt")
-        # Log latent space distance analysis to file.
-        with open(latent_distances_filename, 'a') as file:
-            file.write(
-                f"Epoch {epoch}: F-H latent distance positives: {average_positive_distances_first_half:.3f}, "
-                f"F-H latent distance negatives: {average_negative_distances_first_half:.3f} "
-                f"Ratio : {ratio_distances:.3f}\n"
-    )
-        # Calculate distances in face recognition space to assess quantitatively the quality of the mixing.
-        FR_distance(encoded_images_tensor,identity_ids_tensor,model,epoch)
+            variance_metric_number = variance_metric(encoded_images_tensor,identity_ids_tensor)
+
+            with open(variance_metric_filepath, 'a') as file:
+                file.write(
+                    f"Epoch {epoch}: variance_metric : {variance_metric_number:.3f} \n"
+        )
+                
+            saved_pca_filepath = os.path.join(output_dir, f"pca_epoch_{epoch}.jpg")    
+            pca_with_perturbation(generator,model,encoded_images_tensor,saved_pca_filepath)
+
+            # distances in latent space
+            average_positive_distances_first_half , average_negative_distances_first_half, ratio_distances = ratio_identity_part(encoded_images_tensor,identity_ids_tensor)
+            latent_distances_filename = os.path.join(output_dir, "latent_distances_FH.txt")
+            # Log latent space distance analysis to file.
+            with open(latent_distances_filename, 'a') as file:
+                file.write(
+                    f"Epoch {epoch}: F-H latent distance positives: {average_positive_distances_first_half:.3f}, "
+                    f"F-H latent distance negatives: {average_negative_distances_first_half:.3f} "
+                    f"Ratio : {ratio_distances:.3f}\n"
+        )
+            # Calculate distances in face recognition space to assess quantitatively the quality of the mixing.
+            FR_distance(encoded_images_tensor,identity_ids_tensor,model,epoch)
         ##################################################################################
         print(f"[{datetime.now()}] training epoch {epoch}/{epochs}...")
         # Execute one training epoch and retrieve losses and gradient norms.
         train_batch_losses, train_batch_grad = train(
             generator,
             model,
+            means,
+            variances,
             train_dataloader,
             disgan_optimizer,
             optimizer_discriminators,
@@ -748,6 +866,8 @@ def main(cfg):
         test_batch_losses = validate(
             generator,
             model,
+            means,
+            variances,
             test_dataloader,
             contrastive_loss_fn,
             discriminatorLoss_fn,
@@ -763,10 +883,10 @@ def main(cfg):
         )
 
         # Calculate and log the mean loss values for the current epoch.
-        contrastive_loss_value = np.mean(train_batch_losses["contrastive_loss"])
-        discriminator_loss_value = np.mean(train_batch_losses["discriminator_loss"])
-        switch_loss_value = np.mean(train_batch_losses["switch_loss"])
-        landmark_loss_value = np.mean(train_batch_losses["landmark_loss"])
+        contrastive_loss_value = np.mean(test_batch_losses["contrastive_loss"])
+        discriminator_loss_value = np.mean(test_batch_losses["discriminator_loss"])
+        switch_loss_value = np.mean(test_batch_losses["switch_loss"])
+        landmark_loss_value = np.mean(test_batch_losses["landmark_loss"])
 
         # Calculate and log the ratios of loss components for analysis.
         contrastive_to_discriminator_ratio = contrastive_loss_value / discriminator_loss_value if discriminator_loss_value != 0 else 0
@@ -833,6 +953,8 @@ def main(cfg):
     val_batch_loss = validate(
             generator,
             model,
+            means,
+            variances,
             val_dataloader,
             contrastive_loss_fn,
             discriminatorLoss_fn,
