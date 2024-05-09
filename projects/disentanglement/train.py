@@ -1,90 +1,8 @@
 
-"""
-#TODO In code:
-
-Write backup script to backup train.py, losses.py, running_metrics.py, thesis_visuals, 
-0.
-
-Implement interpolation metric in visualisations directory
-
-1. For each loss and each non-LR hyperparameter, Find the optimal LR:
-
-Contrastive loss:
-n_pairs: LR = 
-Triplet: LR =
-
-discriminator losses:
-pre-trained: LR =
-not: LR =
-
-Switch loss: LR = 
-
-Landmark loss: LR = 
-
-2. Run with all the samples. Modifications required: Save the model more often. Double check the metrics are correctly computed.
-
-3. Find the best combination
-
-Miscelaneous:
-
-##############################################################################################
-
-import numpy as np
-from itertools import combinations
-from tqdm import tqdm
-
-def ratio_identity_part(encoded_images, identity_ids):
-
-    encoded_images = encoded_images.view(encoded_images.size(0), -1)
-    half_size = encoded_images.size(1) // 2
-    first_half = encoded_images[:, :half_size]
-
-    # Convert tensors to numpy for easier manipulation
-    encoded_first_half_np = first_half.numpy()
-    identity_ids_np = identity_ids.numpy()
-
-    # Iterate over each unique identity
-    for identity in tqdm(np.unique(identity_ids_np), desc="Processing identities"):
-        same_id_indices = np.where(identity_ids_np == identity)[0]
-        diff_id_indices = np.where(identity_ids_np != identity)[0]
-
-        # Generate all possible intra-identity pairs
-        for pair in combinations(same_id_indices, 2):
-            norm_v1 = np.linalg.norm(encoded_first_half_np[pair[0]])
-            norm_v2 = np.linalg.norm(encoded_first_half_np[pair[1]])
-            distance_identity = np.dot(encoded_first_half_np[pair[0]], encoded_first_half_np[pair[1]]) / (norm_v1 * norm_v2)
-            intra_distances_identity.append(distance_identity)
-            
-            # Sample an inter-identity pair for each intra-identity pair
-            if len(diff_id_indices) > 1:
-                sampled_diff_ids = np.random.choice(diff_id_indices, 2, replace=False)
-                norm_v1 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[0]])
-                norm_v2 = np.linalg.norm(encoded_first_half_np[sampled_diff_ids[1]])
-                distance_identity = np.dot(encoded_first_half_np[sampled_diff_ids[0]], encoded_first_half_np[sampled_diff_ids[1]]) / (norm_v1 * norm_v2)
-                inter_distances_identity.append(distance_identity)
-
-    # Calculate average distances
-    average_positive_distances_first_half = np.mean(intra_distances_identity)
-    average_negative_distances_first_half = np.mean(inter_distances_identity)
-
-    ratio_distances = average_positive_distances_first_half / average_negative_distances_first_half
-
-    return average_positive_distances_first_half, average_negative_distances_first_half, ratio_distances
-
-    
-"""
-
-
 ##############################################################################################
 # HYPERPARAMETERS TO TUNE
 #------------------------------------------------------------------------------------------------------------------------#
 # BS= 2 (test=8)
-# experiment with weight_inside: 0 or 1
-# Run2: WI= 0, lr = 0.0001 # problem: okay but landmarks not changing
-# Run3: WI= 0 , lr = 0.0005 # problem: direct collapse
-# Run4: WI = 1 , lr = 0.0005 # same direct collapse
-# Run5: WI = 1 , lr = 0.0001
-#Run 1: find learning rate
 landmark_loss_on = False  # Enable or disable landmark loss.
 lambda_landmark = 1  # Weighting factor for landmark loss.
 weight_inside = 1
@@ -93,45 +11,25 @@ weight_inside = 1
 switch_loss_on = False  # Enable or disable switch loss.
 lambda_switch = 1  # Weighting factor for switch loss.
 
-#run1: before change:  lr = 0.000001. e=10. Problem: learning too fast: artifacts, and has more room for learning
-#run2: same as run1 after changing to probability
-#run3: same but half the learning rate 0.0000005
-#next run: cut learning rate to 0.0000001 and atleast 30 epochs (3 days)
 #------------------------------------------------------------------------------------------------------------------------#
-
 # BS = 16
-#run1: triplet False, lr = 0.0001. training a bit too fast perhaps. decrease learning rate and train for longer time
-#run2: same as run1 but with triplet loss. problem: strong collapse
-#run3: decreased learning rate for triplet. convergance very slow and weird collapse.
-# Conclusion: n_pairs much superior
-# run4:  n_pairs 0.00001
-# run5:  n_pairs 0.00005
-
-#Conclusion: optimal is n_pairs: try for longer training time with lr = 0.0001, 0.00001, or 0.00005.
-
-#experiment  with  Triplet/n_pairs
 contrastive_loss_on = True  # Enable or disable contrastive loss.
 triplet = False  # Use triplet formulation for contrastive loss, otherwise n_pairs
 lambda_contrastive = 1  # Weighting factor for contrastive loss.
 #------------------------------------------------------------------------------------------------------------------------#
 # BS = 16
-#experiment with pretrained, always using both networks
-
 discriminator_loss_on = False  # Enable or disable discriminator loss.
 only_second_half_ID_D = False  # Use only the ID Discriminator to drive out ID information from the second half of the latent space.
 pretained_ID_D = False  # Toggle the use of a pretrained ID Discriminator.
 lambda_discriminator = 1  # Weighting factor for discriminator loss.
 #-----------------------------------------------------------------------------------------------------------------------#
-
 # General training hyperparameters.
 train_batch_size = 16
 test_batch_size = 16
-lr = 0.0001  # Learning rate for the NICE network. LR scales linearly with the number of training images?
+lr = 0.0001  # Learning rate for the NICE network.
 epochs = 30  # Number of training epochs.
 num_training_images = 10000  # Choose either 30 000 for full training or a subset for experimentation.
 num_encodings = 5000  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
-
-
 ##############################################################################################
 
 
