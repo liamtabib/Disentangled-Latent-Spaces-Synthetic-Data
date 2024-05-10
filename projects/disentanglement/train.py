@@ -1,4 +1,27 @@
 
+"""
+Implement interpolation metric in visualisations directory
+
+1. For each loss and each non-LR hyperparameter, Find the optimal LR:
+
+Contrastive loss:
+n_pairs: LR = 
+Triplet: LR =
+
+discriminator losses:
+pre-trained: LR =
+not: LR =
+
+Switch loss: LR = 
+
+Landmark loss: LR = 
+
+2. Run with all the samples. Modifications required: Save the model more often. Double check the metrics are correctly computed.
+
+3. Find the best combination
+
+"""
+
 ##############################################################################################
 # HYPERPARAMETERS TO TUNE
 #------------------------------------------------------------------------------------------------------------------------#
@@ -26,10 +49,10 @@ lambda_discriminator = 1  # Weighting factor for discriminator loss.
 # General training hyperparameters.
 train_batch_size = 16
 test_batch_size = 16
-lr = 0.0001  # Learning rate for the NICE network.
+lr = 0.000001  # Learning rate for the NICE network.
 epochs = 30  # Number of training epochs.
-num_training_images = 10000  # Choose either 30 000 for full training or a subset for experimentation.
-num_encodings = 5000  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
+num_training_images = 100  # Choose either 30 000 for full training or a subset for experimentation.
+num_encodings = 50  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
 ##############################################################################################
 
 
@@ -688,6 +711,9 @@ def main(cfg):
 
     # Main training loop processing each epoch.
     for epoch in range(epochs):
+
+        utils.save_weights(model, os.path.join(output_dir, f"model_T_{epoch}"))
+
 
         #METRICS
         ##################################################################################
