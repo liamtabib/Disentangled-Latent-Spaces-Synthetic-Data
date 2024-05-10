@@ -192,9 +192,10 @@ def mix_identity(Generator, model, save_path):
 
 
     image_paths = [
-        'datasets/celebahq/images/11350.jpg', 'datasets/celebahq/images/10668.jpg',
-        'datasets/celebahq/images/10651.jpg', 'datasets/celebahq/images/11283.jpg',
-        'datasets/celebahq/images/11217.jpg', 'datasets/celebahq/images/10964.jpg'
+        'datasets/celebahq/images/14069.jpg', 'datasets/celebahq/images/14305.jpg',
+        'datasets/celebahq/images/13526.jpg', 'datasets/celebahq/images/14240.jpg',
+        'datasets/celebahq/images/13213.jpg', 'datasets/celebahq/images/15132.jpg',
+        'datasets/celebahq/images/14630.jpg'
     ]
 
     # Handle case where the model is wrapped in DataParallel
