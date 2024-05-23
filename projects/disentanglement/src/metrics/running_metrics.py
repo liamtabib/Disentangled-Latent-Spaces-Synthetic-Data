@@ -144,6 +144,30 @@ class DCI:
             train_loss.append(np.mean(model.predict(x_train) == y_train[:, i]))
             test_loss.append(np.mean(model.predict(x_test) == y_test[:, i]))
         return importance_matrix, train_loss, test_loss
+    @staticmethod
+    def disentanglement(importance_matrix):
+        """
+        Computes the disentanglement score based on the importance matrix.
+        Args:
+            importance_matrix (np.ndarray): Matrix of feature importances.
+        Returns:
+            float: Disentanglement score.
+        """
+        per_code = 1.0 - scipy.stats.entropy(importance_matrix.T + 1e-10, base=importance_matrix.shape[1])
+        return np.mean(per_code)
+
+    @staticmethod
+    def completeness(importance_matrix):
+        """
+        Computes the completeness score based on the importance matrix.
+        Args:
+            importance_matrix (np.ndarray): Matrix of feature importances.
+        Returns:
+            float: Completeness score.
+        """
+        per_factor = 1.0 - scipy.stats.entropy(importance_matrix + 1e-10, base=importance_matrix.shape[0])
+        return np.mean(per_factor)
+
 
 
 def get_font(size=40):
@@ -658,11 +682,11 @@ def mix_landmarks(Generator, model, save_path):
 
 
     image_paths = [
-        'datasets/celebahq/images/11350.jpg', 'datasets/celebahq/images/10668.jpg',
-        'datasets/celebahq/images/10651.jpg', 'datasets/celebahq/images/11283.jpg',
-        'datasets/celebahq/images/11217.jpg', 'datasets/celebahq/images/10964.jpg'
+        'datasets/celebahq/images/14069.jpg', 'datasets/celebahq/images/14305.jpg',
+        'datasets/celebahq/images/13526.jpg', 'datasets/celebahq/images/14240.jpg',
+        'datasets/celebahq/images/13213.jpg', 'datasets/celebahq/images/15132.jpg',
+        'datasets/celebahq/images/14630.jpg'
     ]
-
     # Handle case where the model is wrapped in DataParallel
     if isinstance(model, torch.nn.DataParallel):
         model = model.module
@@ -822,7 +846,7 @@ def pca_with_perturbation(Generator, model, encoded_images, save_path, n_compone
             scaled_component = scale * std_dev * principal_component
             
             # Modify each latent vector by the scaled component
-            modified_latent_vector = encoded_images_tensor[10].clone()  # Use .clone() to ensure we're not modifying the original
+            modified_latent_vector = encoded_images_tensor[14240].clone()  # Use .clone() to ensure we're not modifying the original
             modified_latent_vector[:half_feature_size] += scaled_component
             modified_latent_vector_reshaped = modified_latent_vector.reshape(1, 16, 512).to(device)
 
@@ -870,7 +894,7 @@ def pca_with_perturbation(Generator, model, encoded_images, save_path, n_compone
             scaled_component = scale * std_dev * principal_component
             
             # Modify each latent vector by the scaled component
-            modified_latent_vector = encoded_images_tensor[10].clone()  # Use .clone() to ensure we're not modifying the original
+            modified_latent_vector = encoded_images_tensor[14240].clone()  # Use .clone() to ensure we're not modifying the original
             modified_latent_vector[half_feature_size: ] += scaled_component
             modified_latent_vector_reshaped = modified_latent_vector.reshape(1, 16, 512).to(device)
             modified_latent_vector_reshaped = model.inverse_T(modified_latent_vector_reshaped)

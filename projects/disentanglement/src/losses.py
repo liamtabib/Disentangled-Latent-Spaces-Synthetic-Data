@@ -287,12 +287,11 @@ class LandmarkLoss(nn.Module):
                     masks[idx, :, y:yh, x:xw] = 1
                 
                 outside_bb_loss = ((1 - masks) * pixel_diffs).sum()
-                inside_bb_loss =  (masks * pixel_diffs).sum()
-                print(f"outside loss: {outside_bb_loss}")
-                print(f"inside loss: {inside_bb_loss}")
+                #inside_bb_loss =  -(masks * pixel_diffs).sum()
+                #print(f"outside loss: {outside_bb_loss}")
+                #print(f"inside loss: {inside_bb_loss}")
 
-                loss += outside_bb_loss  - inside_bb_loss
-
+                loss += outside_bb_loss
             else:
 
                 perturbations_other_dims = torch.normal(means, variances.sqrt())
@@ -309,8 +308,8 @@ class LandmarkLoss(nn.Module):
                     masks[idx, :, y:yh, x:xw] = 1
 
                 other_dimensions_loss =  (masks * pixel_diffs_other_dims).sum()
-                print(f"other dimensions loss: {other_dimensions_loss/100}")
-                loss +=  other_dimensions_loss/100
+                #print(f"other dimensions loss: {other_dimensions_loss/100}")
+                loss +=  other_dimensions_loss
 
         
         return loss

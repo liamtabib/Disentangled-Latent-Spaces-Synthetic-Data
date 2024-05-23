@@ -1,11 +1,5 @@
-
 ##############################################################################################
 # HYPERPARAMETERS TO TUNE
-#------------------------------------------------------------------------------------------------------------------------#
-# BS= 2 (test=8)
-landmark_loss_on = False  # Enable or disable landmark loss.
-lambda_landmark = 1  # Weighting factor for landmark loss.
-weight_inside = 1
 #------------------------------------------------------------------------------------------------------------------------#
 #BS=2 (test=8), n=10.000
 switch_loss_on = False  # Enable or disable switch loss.
@@ -13,25 +7,31 @@ lambda_switch = 1  # Weighting factor for switch loss.
 
 #------------------------------------------------------------------------------------------------------------------------#
 # BS = 16
-contrastive_loss_on = True  # Enable or disable contrastive loss.
-triplet = False  # Use triplet formulation for contrastive loss, otherwise n_pairs
+contrastive_loss_on = False  # Enable or disable contrastive loss.
 lambda_contrastive = 1  # Weighting factor for contrastive loss.
 #------------------------------------------------------------------------------------------------------------------------#
+# BS= 2 (test=8)
+landmark_loss_on = False  # Enable or disable landmark loss.
+lambda_landmark = 1  # Weighting factor for landmark loss.
+#------------------------------------------------------------------------------------------------------------------------#
 # BS = 16
-discriminator_loss_on = False  # Enable or disable discriminator loss.
-only_second_half_ID_D = False  # Use only the ID Discriminator to drive out ID information from the second half of the latent space.
-pretained_ID_D = False  # Toggle the use of a pretrained ID Discriminator.
+discriminator_loss_on = True  # Enable or disable discriminator loss.
 lambda_discriminator = 1  # Weighting factor for discriminator loss.
 #-----------------------------------------------------------------------------------------------------------------------#
 # General training hyperparameters.
 train_batch_size = 16
 test_batch_size = 16
-lr = 0.001  # Learning rate for the NICE network.
-epochs = 30  # Number of training epochs.
-num_training_images = 1000  # Choose either 30 000 for full training or a subset for experimentation.
-num_encodings = 50  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
-##############################################################################################
+lr = 0.000001  # Learning rate for the NICE network.
 
+##############################################################################################
+#Fixed params
+triplet = False  # Use triplet formulation for contrastive loss, otherwise n_pairs
+weight_inside = 1
+only_second_half_ID_D = False  # Use only the ID Discriminator to drive out ID information from the second half of the latent space.
+pretained_ID_D = False  # Toggle the use of a pretrained ID Discriminator.
+epochs = 50  # Number of training epochs.
+num_training_images = 30000  # Choose either 30 000 for full training or a subset for experimentation.
+num_encodings = 30000  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
 
 # Standard Library Imports
 import os
@@ -699,15 +699,40 @@ def main(cfg):
             saved_landmark_filepath = os.path.join(output_dir, f"mixed_landmark_epoch_{epoch}.jpg")    
             mix_landmarks(generator,model,saved_landmark_filepath)
             encoded_images_tensor,identity_ids_tensor = encode_dataset(model,num_encodings)
+
+            variance_metric_filepath = os.path.join(output_dir, f"variance_metric.txt")
+
+            variance_metric_number = variance_metric(encoded_images_tensor,identity_ids_tensor)
+
+            with open(variance_metric_filepath, 'a') as file:
+                file.write(
+                    f"Epoch {epoch}: variance_metric : {variance_metric_number:.3f} \n"
+        )
+                
+            saved_pca_filepath = os.path.join(output_dir, f"pca_epoch_{epoch}.jpg")    
+            pca_with_perturbation(generator,model,encoded_images_tensor,saved_pca_filepath)
+
+            # distances in latent space
+            average_positive_distances_first_half , average_negative_distances_first_half, ratio_distances = ratio_identity_part(encoded_images_tensor,identity_ids_tensor)
+            latent_distances_filename = os.path.join(output_dir, "latent_distances_FH.txt")
+            # Log latent space distance analysis to file.
+            with open(latent_distances_filename, 'a') as file:
+                file.write(
+                    f"Epoch {epoch}: F-H latent distance positives: {average_positive_distances_first_half:.3f}, "
+                    f"F-H latent distance negatives: {average_negative_distances_first_half:.3f} "
+                    f"Ratio : {ratio_distances:.3f}\n"
+        )
+            # Calculate distances in face recognition space to assess quantitatively the quality of the mixing.
+            FR_distance(encoded_images_tensor,identity_ids_tensor,model,epoch)
+            
             encoded_images_tensor = encoded_images_tensor.view(encoded_images_tensor.size(0), -1).to('cuda')
 
             means = torch.mean(encoded_images_tensor, dim=0).unsqueeze(0).to(device)
             variances = torch.var(encoded_images_tensor, dim=0, unbiased=True).unsqueeze(0).to(device)
         
 
+    # Encode datasets to analyze latent space distances.
         else:
-
-        # Encode datasets to analyze latent space distances.
             encoded_images_tensor,identity_ids_tensor = encode_dataset(model,num_encodings)
             means, variances = None, None
 
@@ -737,6 +762,10 @@ def main(cfg):
             FR_distance(encoded_images_tensor,identity_ids_tensor,model,epoch)
         ##################################################################################
         print(f"[{datetime.now()}] training epoch {epoch}/{epochs}...")
+        if epoch % 2 == 0 and epoch != 0:
+            utils.save_weights(model, os.path.join(output_dir, f"model_T_{epoch}"))
+
+
         # Execute one training epoch and retrieve losses and gradient norms.
         train_batch_losses, train_batch_grad = train(
             generator,
@@ -842,9 +871,6 @@ def main(cfg):
                 os.path.join(output_dir, f"{metric_name}.png"),
             )
         utils.plot_grads(all_grads, os.path.join(output_dir, f"grads.png"))
-        # Save model weights at the end of the final epoch.
-        if epoch == epochs-1:
-            utils.save_weights(model, os.path.join(output_dir, f"model_T_{epoch}"))
         # Close all matplotlib plots to free memory.
         plt.close('all')
     # Validate model performance on the validation dataset after training.
