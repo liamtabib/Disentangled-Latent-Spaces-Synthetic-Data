@@ -17,6 +17,7 @@
 
 ## Training the Disentangled Latent Space:
 To start the training of the bijective transformation:
+
 0. Setup the environment, including the dataset, pre-trained models, and external repositories.
 1. Install required Python packages:
    pip install -r requirements.txt
