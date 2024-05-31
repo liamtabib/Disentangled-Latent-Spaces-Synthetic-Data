@@ -1,7 +1,7 @@
 ##############################################################################################
 # HYPERPARAMETERS TO TUNE
 #------------------------------------------------------------------------------------------------------------------------#
-#BS=2 (test=8), n=10.000
+#BS=2 (test=8)
 switch_loss_on = False  # Enable or disable switch loss.
 lambda_switch = 1  # Weighting factor for switch loss.
 
