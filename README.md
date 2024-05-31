@@ -12,7 +12,7 @@
   - Landmark detectors
 
 ## Code Structure
-- **The work**: The `projects/disentanglement/` directory contains the implementation of this project.
+- **The main directory**: The `projects/disentanglement/` directory contains the implementation of this project.
 - **External modules**: The `ext/` directory contains all external modules such as StyleGAN3, StyleGAN3 Encoder, and insightface (ArcFace recognition model). Clone those repositories in github and place them under a newly created `ext/` directory under root.
 
 ## Training the Disentangled Latent Space:
