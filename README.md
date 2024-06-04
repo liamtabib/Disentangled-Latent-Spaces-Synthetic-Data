@@ -1,4 +1,4 @@
-# Repository for Masters Thesis in Machine Learning: Learning a Disentangled Latent Space With Self-Supervised Methods
+# Repository for Masters Thesis in Machine Learning: Disentangled Latent Space for Synthetic Data
 
 ## Environment Setup
 
