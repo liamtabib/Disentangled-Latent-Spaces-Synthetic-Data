@@ -8,9 +8,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-import src.models as models
-from src.data.dataset import NPairsCelebAHQDataset
-import projects.disentanglement.src.utils as utils
+from disentanglement import models, utils
+from disentanglement.data.dataset import NPairsCelebAHQDataset
 import torch.optim as optim
 from torchvision import transforms
 

@@ -6,7 +6,7 @@ from torchvision.utils import save_image
 from sklearn.decomposition import PCA
 import sys
 sys.path.append('.')
-from projects.disentanglement.src.models import DisGAN, StyleGANSynthesis
+from disentanglement.models import DisGAN, StyleGANSynthesis
 import shutil
 import numpy as np
 from tqdm import tqdm
@@ -49,7 +49,7 @@ def pca_with_perturbation(Generator, model, encoded_images, n_components=3, scal
     principal_components = pca.components_  # Shape: [n_components, flattened_image_size]
     eigenvalues = pca.explained_variance_  # Shape: [n_components]
 
-    save_path = 'projects/disentanglement/thesis_visuals/pca_images'
+    save_path = 'src/visualizations/thesis_visuals/pca_images'
     if os.path.exists(save_path):
         shutil.rmtree(save_path)
     os.makedirs(save_path)
@@ -236,7 +236,7 @@ def main():
     encoded_images_tensor,_ = encode_dataset(disgan_model,30000)
 
     # Example usage
-    generator_model_dir = 'projects/disentanglement/pretrained_models/stylegan3-r-ffhq-1024x1024.pkl'
+    generator_model_dir = 'src/disentanglement/pretrained_models/stylegan3-r-ffhq-1024x1024.pkl'
     generator = StyleGANSynthesis(pretrained_model_dir=generator_model_dir).to(device)
     generator.eval()
 

@@ -4,7 +4,7 @@
 - **train.py**: Contains the main training loop for the models.
 
 ### Source Files
-Located in the `src/` directory, these files include:
+Located in the `src/disentanglement/` directory, these files include:
 
 - **/data/dataset.py**: Manages the CelebAHQ dataset.
 - **models.py**: Defines all model classes.

@@ -6,7 +6,7 @@ import torch
 from torchvision.utils import save_image
 import sys
 sys.path.append('.')
-from projects.disentanglement.src.models import DisGAN,StyleGANSynthesis
+from disentanglement.models import DisGAN, StyleGANSynthesis
 import shutil
 
 
@@ -25,7 +25,7 @@ def save_mixed_id(Generator, model):
     - save_path (str): Directory path where the generated images will be saved.
     """
 
-    first_half_path = 'datasets/celebahq/images/11350.jpg'
+    second_half_path = 'datasets/celebahq/images/11350.jpg'
     image_paths = [
         'datasets/celebahq/images/10668.jpg', 'datasets/celebahq/images/10651.jpg',
         'datasets/celebahq/images/11283.jpg', 'datasets/celebahq/images/11217.jpg',
@@ -42,21 +42,21 @@ def save_mixed_id(Generator, model):
     Generator.to('cuda')
     model.to('cuda')
 
-    save_path = 'projects/disentanglement/thesis_visuals/mix_1_N_save'
+    save_path = 'src/visualizations/thesis_visuals/mix_N_1_save'
     if os.path.exists(save_path):
         # Remove the directory and its contents if it exists
         shutil.rmtree(save_path)
 
     # Create the directory
     os.makedirs(save_path)
-    # Load and process the first half image
-    img_first_half = Image.open(first_half_path).convert('RGB')
-    img_tensor_first_half = transform(img_first_half).unsqueeze(0).to('cuda')
+    # Load and process the second half image
+    img_second_half = Image.open(second_half_path).convert('RGB')
+    img_tensor_second_half = transform(img_second_half).unsqueeze(0).to('cuda')
     with torch.no_grad():
-        w_plus_first_half, _ = model(img_tensor_first_half)
-        reconstructed_first_half = Generator(w_plus_first_half)
-        reconstructed_first_half = (reconstructed_first_half * 0.5 + 0.5).clamp(0, 1)  # Normalize to [0, 1]
-        save_image(reconstructed_first_half.squeeze(), os.path.join(save_path, 'reconstructed_first_half.png'))
+        w_plus_second_half, _ = model(img_tensor_second_half)
+        reconstructed_second_half = Generator(w_plus_second_half)
+        reconstructed_second_half = (reconstructed_second_half * 0.5 + 0.5).clamp(0, 1)  # Normalize to [0, 1]
+        save_image(reconstructed_second_half.squeeze(), os.path.join(save_path, 'reconstructed_second_half.png'))
 
     # Process each second half image
     for i, img_path in enumerate(image_paths):
@@ -68,11 +68,11 @@ def save_mixed_id(Generator, model):
             reconstructed_img = (reconstructed_img * 0.5 + 0.5).clamp(0, 1)  # Normalize to [0, 1]
             save_image(reconstructed_img.squeeze(), os.path.join(save_path, f'reconstructed_{i}.png'))
 
-            # Combine the first half of the fixed image with the second half of the current image
+            # Combine the second half of the fixed image with the second half of the current image
             half_latent_space_size = w_plus.size(1) // 2
             combined_w_star = torch.cat([
-                w_plus_first_half[:, :half_latent_space_size], 
-                w_plus[:, half_latent_space_size:]
+                w_plus[:, :half_latent_space_size], 
+                w_plus_second_half[:, half_latent_space_size:]
             ], dim=1)
             combined_w_plus = model.inverse_T(combined_w_star)
             combined_image = Generator(combined_w_plus)
@@ -94,7 +94,7 @@ def main():
 
 
 
-    generator_model_dir = 'projects/disentanglement/pretrained_models/stylegan3-r-ffhq-1024x1024.pkl'
+    generator_model_dir = 'src/disentanglement/pretrained_models/stylegan3-r-ffhq-1024x1024.pkl'
     generator = StyleGANSynthesis(pretrained_model_dir=generator_model_dir).to(device)
     generator.eval()
 
