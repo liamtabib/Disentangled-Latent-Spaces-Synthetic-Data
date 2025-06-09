@@ -19,8 +19,9 @@
 To start the training of the bijective transformation:
 
 0. Setup the environment, including the dataset, pre-trained models, and external repositories.
-1. Install required Python packages:
-   pip install -r requirements.txt
+1. Install the [uv](https://github.com/astral-sh/uv) package manager and then install the project's requirements:
+   pip install uv
+   uv pip install -r requirements.txt
 2. Start the training process:
     python src/train.py
 
