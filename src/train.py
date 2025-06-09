@@ -54,13 +54,18 @@ from facenet_pytorch import MTCNN, InceptionResnetV1 #For switch loss and FR met
 from sklearn.model_selection import train_test_split
 
 # Local Application/Library Specific Imports
-import src.models as models
-from src.data.dataset import NPairsCelebAHQDataset
-import projects.disentanglement.src.utils as utils
-from projects.disentanglement.src.losses import SwitchLoss, ContrastiveLoss, DiscriminatorLoss,LandmarkDetector,LandmarkLoss
+from disentanglement import models, utils
+from disentanglement.data.dataset import NPairsCelebAHQDataset
+from disentanglement.losses import (
+    SwitchLoss,
+    ContrastiveLoss,
+    DiscriminatorLoss,
+    LandmarkDetector,
+    LandmarkLoss,
+)
 
 # Import functions for dataset encoding, generating the grid, and calculating distances in FR space and latent space.
-from projects.disentanglement.src.metrics.running_metrics import (
+from disentanglement.metrics.running_metrics import (
     encode_dataset, 
     mix_identity, 
     mix_landmarks,
@@ -614,7 +619,7 @@ def main(cfg):
         optimizer_discriminators = None
     
     if landmark_loss_on:
-        predictor_path = "projects/disentanglement/pretrained_models/shape_predictor_68_face_landmarks.dat"
+        predictor_path = "src/disentanglement/pretrained_models/shape_predictor_68_face_landmarks.dat"
         landmark_model = LandmarkDetector(predictor_path)
         landmark_loss_fn = LandmarkLoss(landmark_model, weight_inside)
     else: landmark_loss_fn = None
@@ -632,10 +637,10 @@ def main(cfg):
     # Load pre-trained weights for ID discriminators if configured to do so.
     if discriminator_loss_on and pretained_ID_D:
         if not only_second_half_ID_D:
-            first_half_discriminator_path = 'projects/disentanglement/pretrained_models/discriminators/ID_discriminator_FirstHalf.pt'
+            first_half_discriminator_path = 'src/disentanglement/pretrained_models/discriminators/ID_discriminator_FirstHalf.pt'
             ID_discriminator_FirstHalf.load_state_dict(torch.load(first_half_discriminator_path))
     
-        second_half_discriminator_path = 'projects/disentanglement/pretrained_models/discriminators/ID_discriminator_SecondHalf.pt'
+        second_half_discriminator_path = 'src/disentanglement/pretrained_models/discriminators/ID_discriminator_SecondHalf.pt'
         ID_discriminator_SecondHalf.load_state_dict(torch.load(second_half_discriminator_path))
 
     # Configure the optimizer for the main model's parameters.
