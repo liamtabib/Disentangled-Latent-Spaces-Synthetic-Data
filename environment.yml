@@ -152,6 +152,7 @@ dependencies:
       - tzdata==2023.4
       - uritemplate==4.1.1
       - urllib3==2.1.0
+      - uv>=0.1.0
       - wandb==0.16.4
       - werkzeug==3.0.1
       - wrapt==1.14.1
