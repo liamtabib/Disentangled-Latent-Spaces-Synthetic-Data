@@ -1,0 +1,55 @@
+# Configuration for Disentangled Latent Spaces Synthetic Data Project
+
+# Training Configuration
+training:
+  # Loss function toggles
+  switch_loss_on: false
+  lambda_switch: 1
+
+  contrastive_loss_on: false
+  lambda_contrastive: 1
+
+  landmark_loss_on: false
+  lambda_landmark: 1
+
+  discriminator_loss_on: true
+  lambda_discriminator: 1
+
+  # Training parameters
+  train_batch_size: 16
+  test_batch_size: 16
+  learning_rate: 0.000001
+  epochs: 50
+  
+  # Dataset parameters
+  num_training_images: 30000
+  num_encodings: 30000
+
+  # Loss function specific parameters
+  triplet: false
+  weight_inside: 1
+  only_second_half_ID_D: false
+  pretrained_ID_D: false
+
+# Dataset Configuration
+dataset:
+  images_dir: "datasets/celebahq/images"
+  attributes_file: "datasets/celebahq/CelebAMask-HQ-attribute-anno.txt"
+  identities_file: "datasets/celebahq/identity_ID.csv"
+
+# Model Configuration
+models:
+  stylegan3_path: "ext/stylegan3"
+  encoder_path: "ext/stylegan3_editing"
+  pretrained_models_dir: "projects/disentanglement/pretrained_models"
+
+# Paths Configuration
+paths:
+  project_root: "."
+  external_deps: "ext"
+  datasets: "datasets"
+  
+# Device Configuration
+device:
+  use_cuda: true
+  gpu_id: 0

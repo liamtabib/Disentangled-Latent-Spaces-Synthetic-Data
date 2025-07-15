@@ -1,37 +1,31 @@
-##############################################################################################
-# HYPERPARAMETERS TO TUNE
-#------------------------------------------------------------------------------------------------------------------------#
-#BS=2 (test=8)
-switch_loss_on = False  # Enable or disable switch loss.
-lambda_switch = 1  # Weighting factor for switch loss.
+import yaml
 
-#------------------------------------------------------------------------------------------------------------------------#
-# BS = 16
-contrastive_loss_on = False  # Enable or disable contrastive loss.
-lambda_contrastive = 1  # Weighting factor for contrastive loss.
-#------------------------------------------------------------------------------------------------------------------------#
-# BS= 2 (test=8)
-landmark_loss_on = False  # Enable or disable landmark loss.
-lambda_landmark = 1  # Weighting factor for landmark loss.
-#------------------------------------------------------------------------------------------------------------------------#
-# BS = 16
-discriminator_loss_on = True  # Enable or disable discriminator loss.
-lambda_discriminator = 1  # Weighting factor for discriminator loss.
-#-----------------------------------------------------------------------------------------------------------------------#
-# General training hyperparameters.
-train_batch_size = 16
-test_batch_size = 16
-lr = 0.000001  # Learning rate for the NICE network.
+# Load configuration from config.yaml
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
-##############################################################################################
-#Fixed params
-triplet = False  # Use triplet formulation for contrastive loss, otherwise n_pairs
-weight_inside = 1
-only_second_half_ID_D = False  # Use only the ID Discriminator to drive out ID information from the second half of the latent space.
-pretained_ID_D = False  # Toggle the use of a pretrained ID Discriminator.
-epochs = 50  # Number of training epochs.
-num_training_images = 30000  # Choose either 30 000 for full training or a subset for experimentation.
-num_encodings = 30000  # Number of image to include in the metrics for FR distance, w_star distance and DCI.
+# Extract configuration values
+training_config = config["training"]
+switch_loss_on = training_config["switch_loss_on"]
+lambda_switch = training_config["lambda_switch"]
+contrastive_loss_on = training_config["contrastive_loss_on"]
+lambda_contrastive = training_config["lambda_contrastive"]
+landmark_loss_on = training_config["landmark_loss_on"]
+lambda_landmark = training_config["lambda_landmark"]
+discriminator_loss_on = training_config["discriminator_loss_on"]
+lambda_discriminator = training_config["lambda_discriminator"]
+
+train_batch_size = training_config["train_batch_size"]
+test_batch_size = training_config["test_batch_size"]
+lr = training_config["learning_rate"]
+epochs = training_config["epochs"]
+num_training_images = training_config["num_training_images"]
+num_encodings = training_config["num_encodings"]
+
+triplet = training_config["triplet"]
+weight_inside = training_config["weight_inside"]
+only_second_half_ID_D = training_config["only_second_half_ID_D"]
+pretained_ID_D = training_config["pretrained_ID_D"]
 
 # Standard Library Imports
 import os

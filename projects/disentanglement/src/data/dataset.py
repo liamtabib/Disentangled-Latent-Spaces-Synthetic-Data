@@ -7,15 +7,27 @@ import cv2
 import numpy as np
 import pandas as pd
 import torch
+import yaml
 from torch.utils.data import Dataset
 from ext.stylegan3_editing.notebooks.notebook_utils import run_alignment
 
 
-DATASET_CFG = {
-    "images_dir": "datasets/celebahq/images",
-    "attributes_file": "datasets/celebahq/CelebAMask-HQ-attribute-anno.txt",
-    "identities": "datasets/celebahq/identity_ID.csv",
-}
+def load_dataset_config():
+    """Load dataset configuration from config.yaml"""
+    try:
+        with open("config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+        return config["dataset"]
+    except (FileNotFoundError, KeyError):
+        # Fallback to default config if config.yaml is not found
+        return {
+            "images_dir": "datasets/celebahq/images",
+            "attributes_file": "datasets/celebahq/CelebAMask-HQ-attribute-anno.txt",
+            "identities_file": "datasets/celebahq/identity_ID.csv",
+        }
+
+
+DATASET_CFG = load_dataset_config()
 
 
 class CelebAHQDataset(Dataset):
