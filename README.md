@@ -2,7 +2,13 @@
 
 **[Official Published Paper](https://www.diva-portal.org/smash/record.jsf?pid=diva2:1887438)**
 
-This project implements a machine learning pipeline for controllable synthetic data generation. The system learns to disentangle identity features (who someone is) and other attributes (like lighting or pose) in StyleGAN3's latent space, so that we can generate more controlled and precise synthetic data using StyleGAN3.
+This project is a machine learning pipeline that generates realistic, controllable synthetic faces—providing a low-cost stream of diverse, high-quality training data for computer vision models. Traditional facial datasets are expensive to collect and lack the specific variations needed for robust model training, particularly for rare combinations of identity, lighting, and pose attributes.
+
+The pipeline controls facial attribute generation at the feature level by separating identity features from environmental factors like lighting and pose, allowing independent manipulation of these characteristics during synthetic face generation.
+
+Built on StyleGAN3 with custom disentanglement techniques, the system produces realistic images where you can systematically vary specific attributes while holding others constant—ideal for creating controlled datasets and testing model robustness. The architecture combines pre-trained StyleGAN3 encoders with trainable NICE transformation networks.
+
+This enables engineers to expand their training datasets with exactly the attribute combinations they need, reducing data collection costs while improving model performance. This is particularly valuable for bias testing, edge case generation, and creating balanced datasets across demographics.
 
 ## Quick Setup
 
